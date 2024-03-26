@@ -2,6 +2,10 @@
 
 # Retrouver les contours des toits des bâtiments en 3D
 
+Ce répertoire permet de :
+* reconstruire en 3D les contours de toit (script run.py)
+* recaler les bâtiments de la BD Uni sur les contours de toit trouvés précédemment (script run_recalage.py)
+
 
 ## Mise en place d'un chantier
 
@@ -23,7 +27,7 @@ Cinq chantiers sont disponibles dans store-echange/CelestinHuet/Samon_gouttieres
 
 ### 05_2022
 
-Forteresse de Mont-Dauphin. Ce chantier ne fonctionne qu'avec la commande run.sh car la BD Uni n'est pas présente dans ce chantier (donc pas de recalage possible)
+Forteresse de Mont-Dauphin. Ce chantier ne fonctionne qu'avec la commande run.py car la BD Uni n'est pas présente dans ce chantier (donc pas de recalage possible)
 
 Exemple de commande : 
 ```
@@ -61,30 +65,6 @@ conda activate samon
 ```
 
 
-## Lignes de commandes
-
-Pour trouver les contours de bâtiments (chemin/chantier est le répertoire qui contient le chantier) :
-```
-sh run.sh chemin/chantier
-```
-
-Pour trouver les contours de bâtiments dans une zone délimitée par une emprise (l'emprise est un fichier shapefile ou geojson) :
-```
-sh run.sh chemin/chantier chemin/emprise
-```
-
-
-Pour recaler les bâtiments de la BD Uni (chemin/bd_uni est un répertoire qui contient la bd uni sous format shapefile) :
-```
-sh run_recalage.sh chemin/chantier chemin/bd_uni
-```
-
-Pour recaler les bâtiments de la BD Uni dans une zone délimitée par une emprise (l'emprise est un fichier shapefile ou geojson):
-```
-sh run_recalage.sh chemin/chantier chemin/bd_uni chemin/emprise
-```
-
-
 
 ## Les fichiers résultats
 
@@ -98,7 +78,7 @@ Dans chantiers/gouttieres :
 * intersection_plan : position 3D des bords de toit. En fichier shapefile, ce sont leurs projections 2D. Le fichier xyz peut se superposer avec du lidar.
 * batiments_fermes : on ferme les bâtiments à partir des bords de toit trouvés à l'étape précédente. En fichier shapefile, ce sont leurs projections 2D. Le fichier xyz peut se superposer avec du lidar.
 
-Dans le cas de run_recalage.sh, on trouve en plus :
+Dans le cas de run_recalage.py, on trouve en plus :
 * BD_Uni_regroupee : BD Uni après avoir regroupé en une seule géométrie les géométries jointives
 * intersections_ajustees : lorsque deux segments voisins s'intersectent, on modifie leurs extrémités de façon à ce qu'elles correspondent à l'intersection
 * association_bati_BD_Uni : chaque bâtiment possède le même identifiant entre ce qui vient de la BD Uni et ce qui vient du calcul des gouttières
