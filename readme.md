@@ -17,14 +17,43 @@ Eventuellement, il peut s'y trouver :
 * un répertoire contenant le lidar de la zone pour contrôler les résultats
 
 
+## Chantiers disponibles
+
+Cinq chantiers sont disponibles dans store-echange/CelestinHuet/Samon_gouttieres/Chantiers
+
+### 05_2022
+
+Forteresse de Mont-Dauphin. Ce chantier ne fonctionne qu'avec la commande run.sh car la BD Uni n'est pas présente dans ce chantier (donc pas de recalage possible)
+
+### Marseille
+
+Quatre zones de Marseille. Il est possible de l'utiliser pour le recalage. Le répertoire BD_Uni_verite_terrain contient la BD Uni parfaitement recalée (saisie dans le cadre d'un autre projet il y a quelques années), mais sans la contrainte d'appliquer une rotation, une translation et un facteur d'échelle.
+
+Les zones sont : 
+* zone 1 : espace périurbain.
+* zone 2 : zone industrielle
+* zone 3 et zone 4 : centre-ville de Marseille. Ces deux zones fonctionnent très mal avec cet algorithme.
+
+Exemple de commande : 
+```
+sh run_recalage.sh chantiers/Marseille_zone_1/ chantiers/Marseille_zone_1/BDUNI/ chantiers/Marseille_zone_1/zone_periurbaine_1.geojson
+```
+
+
+
 ## Installation
 
 Création de l'environnement conda : 
 ```
 mamba env create -f environment.yaml
+conda activate samon
 ```
 
-
+Ou bien 
+```
+conda env create -f environment.yaml
+conda activate samon
+```
 
 
 ## Lignes de commandes

@@ -18,7 +18,7 @@ seuil_distance_droite_2 = 1
 
 
 
-def get_id_bati_max():
+def get_id_bati_max(shapefileDir):
     liste_id = []
     max_id = 0
     shapefiles = [i for i in os.listdir(shapefileDir) if i[-4:] == ".shp"]
@@ -37,7 +37,7 @@ def get_id_bati_max():
 
 
 
-def create_goutieres(shots, max_id, mnt):
+def create_goutieres(shots, max_id, mnt, shapefileDir):
     """
     On retire de la liste des shots tous les shots dont les pvas correspondantes sont manquantes
     """
@@ -355,7 +355,7 @@ def reorganiser_goutieres_par_shapefile(batis):
 
 
 
-def sauvegarde(dictionnaire):
+def sauvegarde(dictionnaire, output):
     for shapefile in dictionnaire.keys():
         geometries = []
         liste_id = []
@@ -405,6 +405,35 @@ def sauvegarde_projection(dictionnaire, output, save_voisin=True):
         gdf.to_file(os.path.join(output, shapefile+"_projection.shp"))
 
 
+def association_segments(shapefileDir, mnt_path, ta_xml, raf_path, output):
+    if not os.path.exists(output):
+        os.makedirs(output)
+
+    mnt_path = get_mnt(mnt_path)
+    ta_xml = get_ta_xml(ta_xml)
+    raf_path = get_raf(raf_path)
+
+    mnt = MNT(mnt_path)
+    raf = RAF(raf_path)
+
+    shots = get_shots(ta_xml, shapefileDir, raf)
+
+    # Récupère l'identifiant maximum présent dans le bati
+    liste_id, max_id = get_id_bati_max(shapefileDir)
+
+    # Crée les goutières et les batis
+    batis = create_goutieres(shots, max_id, mnt, shapefileDir)
+
+    # Associe les segments des goutières entre eux
+    association(batis)
+
+
+    goutieres_par_shapefile = reorganiser_goutieres_par_shapefile(batis)
+
+    sauvegarde_projection(goutieres_par_shapefile, output)
+
+    sauvegarde(goutieres_par_shapefile, output)
+
 
 if __name__=="__main__":
 
@@ -418,31 +447,10 @@ if __name__=="__main__":
 
     shapefileDir = args.input
     output = args.output
-    mnt_path = get_mnt(args.mnt)
-    ta_xml = get_ta_xml(args.ta_xml)
-    raf_path = get_raf(args.raf)
+    mnt_path = args.mnt
+    ta_xml = args.ta_xml
+    raf_path = args.raf
 
-    if not os.path.exists(output):
-        os.makedirs(output)
+    association_segments(shapefileDir, mnt_path, ta_xml, raf_path, output)
 
-
-    mnt = MNT(mnt_path)
-    raf = RAF(raf_path)
-
-    shots = get_shots(ta_xml, shapefileDir, raf)
-
-    # Récupère l'identifiant maximum présent dans le bati
-    liste_id, max_id = get_id_bati_max()
-
-    # Crée les goutières et les batis
-    batis = create_goutieres(shots, max_id, mnt)
-
-    # Associe les segments des goutières entre eux
-    association(batis)
-
-
-    goutieres_par_shapefile = reorganiser_goutieres_par_shapefile(batis)
-
-    sauvegarde_projection(goutieres_par_shapefile, output)
-
-    sauvegarde(goutieres_par_shapefile)
+    

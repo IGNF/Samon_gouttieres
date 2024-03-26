@@ -12,13 +12,13 @@ from shot import MNT, RAF
 
 def charger_emprise(chemin_emprise):
     gdf = None
-    if chemin_emprise != "None":
+    if chemin_emprise != "None" and chemin_emprise is not None:
         gdf = gpd.read_file(chemin_emprise).geometry
     return gdf
 
 
 
-def create_goutieres(shots, emprise, mnt):
+def create_goutieres(shots, emprise, mnt, shapefileDir):
     """
     On retire de la liste des shots tous les shots dont les pvas correspondantes sont manquantes
     """
@@ -124,7 +124,7 @@ def graphe_connexe(batis_par_shapefile):
                             
 
 
-def sauvegarde_image(batis_par_shapefile):
+def sauvegarde_image(batis_par_shapefile, output):
     for shapefile in batis_par_shapefile:
         id = []
         polygones = []
@@ -141,7 +141,7 @@ def sauvegarde_image(batis_par_shapefile):
             gdf.to_file(os.path.join(output, shapefile["shapefile"]+".shp"))
 
 
-def sauvegarde_projection(batis_par_shapefile):
+def sauvegarde_projection(batis_par_shapefile, output):
     
 
     for shapefile in batis_par_shapefile:
@@ -160,34 +160,15 @@ def sauvegarde_projection(batis_par_shapefile):
             gdf.to_file(os.path.join(output, shapefile["shapefile"]+"_projection.shp"))
 
 
-
-if __name__=="__main__":
-
-    parser = argparse.ArgumentParser(description="On associe le même identifiant à tous les polygones représentant un même bâtiment")
-    parser.add_argument('--input', help='Répertoire où se trouvent les géométries nettoyées')
-    parser.add_argument('--mnt', help='Répertoire contenant le mnt sous format vrt')
-    parser.add_argument('--ta_xml', help="Répertoire contenant le tableau d'assemblage sous format xml")
-    parser.add_argument('--raf', help="Répertoire contenant la grille raf sous format tif")
-    parser.add_argument('--emprise', help="Répertoire contenant la grille raf sous format tif", default=None)
-    parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
-    args = parser.parse_args()
-
-    shapefileDir = args.input
-    output = args.output
-    mnt_path = get_mnt(args.mnt)
-    ta_xml = get_ta_xml(args.ta_xml)
-    raf_path = get_raf(args.raf)
-    chemin_emprise = args.emprise
-
-    seuil_ps = 0.85
-    seuil_distance = 5
-    seuil_longueure_goutiere = 2
-    seuil_distance_droite = 5
-
+def association_bati(shapefileDir, mnt_path, ta_xml, raf_path, chemin_emprise, output):
 
     if not os.path.exists(output):
         os.makedirs(output)
 
+    mnt_path = get_mnt(mnt_path)
+    ta_xml = get_ta_xml(ta_xml)
+    raf_path = get_raf(raf_path)
+    
     mnt = MNT(mnt_path)
     raf = RAF(raf_path)
 
@@ -199,7 +180,7 @@ if __name__=="__main__":
     emprise = charger_emprise(chemin_emprise)
 
     # On crée les objets gouttières à partir des segments
-    batis_par_shapefile = create_goutieres(shots, emprise, mnt)
+    batis_par_shapefile = create_goutieres(shots, emprise, mnt, shapefileDir)
     print("Gouttières créées")
 
     # On construit pour chaque image une géosérie des bâtiments afin de faciliter la recherche d'intersections
@@ -215,5 +196,29 @@ if __name__=="__main__":
     print("Graphe connexe établi")
 
     # On sauvegarde les bâtiments en projection image et en projection terrain
-    sauvegarde_image(batis_par_shapefile)
-    sauvegarde_projection(batis_par_shapefile)
+    sauvegarde_image(batis_par_shapefile, output)
+    sauvegarde_projection(batis_par_shapefile, output)
+
+
+
+if __name__=="__main__":
+
+    parser = argparse.ArgumentParser(description="On associe le même identifiant à tous les polygones représentant un même bâtiment")
+    parser.add_argument('--input', help='Répertoire où se trouvent les géométries nettoyées')
+    parser.add_argument('--mnt', help='Répertoire contenant le mnt sous format vrt')
+    parser.add_argument('--ta_xml', help="Répertoire contenant le tableau d'assemblage sous format xml")
+    parser.add_argument('--raf', help="Répertoire contenant la grille raf sous format tif")
+    parser.add_argument('--emprise', help="Répertoire contenant la grille raf sous format tif", default=None)
+    parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
+    args = parser.parse_args()
+
+    shapefileDir = args.input
+    output = args.output
+    mnt_path = args.mnt
+    ta_xml = args.ta_xml
+    raf_path = args.raf
+    chemin_emprise = args.emprise
+
+    association_bati(shapefileDir, mnt_path, ta_xml, raf_path, chemin_emprise, output)
+
+    

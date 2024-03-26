@@ -17,7 +17,7 @@ def create_segment(liste_segments, P0, P1):
     
 
 
-def create_polygons(shapefile):
+def create_polygons(input, shapefile):
     
     liste_segments = []
     liste_polygons = []
@@ -49,7 +49,7 @@ def create_polygons(shapefile):
     return liste_polygons, liste_segments, query
 
 
-def lisser(segments):
+def lisser(segments, seuil_ps):
     nouveaux_segments = []
     liste_segments_poly = []
     nb_segments = len(segments)
@@ -113,21 +113,7 @@ def lisser(segments):
 
 
 
-def simplifier_geometry(poly1, poly2):
-    segments1 = []
-    segments2 = []
-    for segment1 in poly1.segments:
-        segment2 = poly2.possede_segment(segment1)
-        if segment2 is not None:
-            segments1.append(segment1)
-            segments2.append(segment2)
-    nouveau_segments = lisser(segments1)
-    poly1.replace(segments1, nouveau_segments)
-    poly2.replace(segments2, nouveau_segments)
-    
-
-
-def sauvegarde(liste_polygons:List[Polygon]):
+def sauvegarde(liste_polygons:List[Polygon], output, shapefile):
     id = []
     polygones = []
     compte_id = 0
@@ -145,6 +131,27 @@ def sauvegarde(liste_polygons:List[Polygon]):
 
 
 
+def nettoyage(input, output):
+
+    seuil_ps = 0.99
+
+    if not os.path.exists(output):
+        os.makedirs(output)
+
+    shapefiles = sorted([i for i in os.listdir(input) if i[-4:]==".shp"])
+    for shapefile in tqdm(shapefiles):
+        print(shapefile)
+        # On crée les géométries
+        liste_polygons, liste_segments, query = create_polygons(input, shapefile)
+
+        for polygon in liste_polygons:
+            nouveaux_segments = lisser(polygon.segments, seuil_ps)
+            polygon.set_segments(nouveaux_segments)
+        
+        
+        sauvegarde(liste_polygons, output, shapefile)
+
+
 
 if __name__=="__main__":
 
@@ -155,23 +162,10 @@ if __name__=="__main__":
 
     input = args.input
     output = args.output
-    seuil_ps = 0.99
-    seuil_area = 5
+
+    nettoyage(input, output)
+    
 
 
-    if not os.path.exists(output):
-        os.makedirs(output)
-
-    shapefiles = sorted([i for i in os.listdir(input) if i[-4:]==".shp"])
-    for shapefile in tqdm(shapefiles):
-        print(shapefile)
-        # On crée les géométries
-        liste_polygons, liste_segments, query = create_polygons(shapefile)
-
-        for polygon in liste_polygons:
-            nouveaux_segments = lisser(polygon.segments)
-            polygon.set_segments(nouveaux_segments)
-        
-        
-        sauvegarde(liste_polygons)
+    
 

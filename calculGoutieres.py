@@ -12,7 +12,7 @@ from tools import get_shots
 
 class CalculGoutieres:
 
-    def __init__(self, ta_xml: str, shapefileDir: str, mnt: str, raf: str, pva:str, resultats:str, save_points_cloud=True) -> None:
+    def __init__(self, ta_xml: str, shapefileDir: str, mnt: str, raf: str, resultats:str, save_points_cloud=True) -> None:
         """
         ta_xml : tableau d'assemblage de la prise de vue
         shapefileDir : répertoire contenant les shapefiles par pvas avec les goutières sur chaque pva
@@ -30,7 +30,6 @@ class CalculGoutieres:
         self.shapefileDir = shapefileDir
         self.mnt = MNT(mnt)
         self.raf = RAF(raf)
-        self.pva = pva
         self.resultats = resultats
         self.liste_id = None
         self.save_points_cloud = save_points_cloud

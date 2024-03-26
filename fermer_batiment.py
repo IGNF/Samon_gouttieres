@@ -77,7 +77,7 @@ def charger_goutieres(shapefileDir, max_id_bati, max_id_chantier, emprise=None):
     return liste_bati, liste_goutieresCalculees, batiments
 
 
-def sauvegarde_shapefile(batiments):
+def sauvegarde_shapefile(batiments, resultat):
     id = []
     geometries = []
     for batiment in batiments:
@@ -196,7 +196,7 @@ def fermer_batiments(batiments:List[Batiment]):
 
 
 
-def sauvegarder_points(batiments):
+def sauvegarder_points(batiments, path_xyz, resolution):
     for batiment in batiments:
         for bati_ferme in batiment.batiments_fermes:
             if len(batiment.batiments_fermes[0]) > 1:
@@ -214,22 +214,10 @@ def sauvegarder_points(batiments):
                                 p = p1 + i * resolution * u_norm
                                 f.write("{} {} {}\n".format(p[0, 0], p[1, 0], p[2, 0]))
 
-
-if __name__=="__main__":
-
-    parser = argparse.ArgumentParser(description="On ferme les bâtiments")
-    parser.add_argument('--input', help='Répertoire où se trouvent le résultat de intersection_plan')
-    parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
-    args = parser.parse_args()
-
-    # répertoire contenant les résultats du script association_segments.py
-    shapefileDir = args.input
-    resultat = args.output
-
+def fermer_batiment_main(shapefileDir, resultat):
     path_xyz= os.path.join(resultat, "batis_fermes.xyz")
 
     resolution = 0.05
-    seuil_ps = 0.8
 
     if not os.path.exists(resultat):
         os.makedirs(resultat)
@@ -246,5 +234,19 @@ if __name__=="__main__":
     fermer_batiments(batiments)
 
 
-    sauvegarde_shapefile(batiments)
-    sauvegarder_points(batiments)
+    sauvegarde_shapefile(batiments, resultat)
+    sauvegarder_points(batiments, path_xyz, resolution)
+
+
+if __name__=="__main__":
+
+    parser = argparse.ArgumentParser(description="On ferme les bâtiments")
+    parser.add_argument('--input', help='Répertoire où se trouvent le résultat de intersection_plan')
+    parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
+    args = parser.parse_args()
+
+    # répertoire contenant les résultats du script association_segments.py
+    shapefileDir = args.input
+    resultat = args.output
+
+    fermer_batiment_main(shapefileDir, resultat)

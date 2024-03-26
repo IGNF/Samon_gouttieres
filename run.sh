@@ -21,7 +21,7 @@ python association_segments.py --input ${repertoire_goutiere}/association_bati -
 
 echo ""
 echo "Calcul des gouttières"
-python intersection_plan.py --input ${repertoire_goutiere}/association_segments --mnt ${repertoire_chantier}/mnt --ta_xml ${repertoire_chantier}/orientation --raf ${repertoire_chantier}/raf --pvas ${repertoire_chantier}/pvas --output ${repertoire_goutiere}/intersection_plan
+python intersection_plan.py --input ${repertoire_goutiere}/association_segments --mnt ${repertoire_chantier}/mnt --ta_xml ${repertoire_chantier}/orientation --raf ${repertoire_chantier}/raf --output ${repertoire_goutiere}/intersection_plan
 
 echo "Fermeture des bâtiments"
 python fermer_batiment.py --input ${repertoire_goutiere}/intersection_plan --output ${repertoire_goutiere}/batiments_fermes
