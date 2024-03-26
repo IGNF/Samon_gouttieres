@@ -1,4 +1,3 @@
-from segment import Segment
 import shapely
 
 class Polygon:
@@ -38,7 +37,6 @@ class Polygon:
         for segment in self.segments:
             
             if not self.in_liste(segment, segments_a_supprimer):
-            #if segment not in segments_a_supprimer:
                 segments.append(segment)
             
         self.segments = segments

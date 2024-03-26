@@ -1,22 +1,5 @@
-
-import os
 import geopandas as gpd
-from tqdm import tqdm
-import argparse
 from shapely import Polygon, convex_hull, MultiPoint, MultiLineString
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 class Bati:
@@ -152,7 +135,4 @@ def charger_bati_gouttieres_rapide(chemin, clef_id, liste_id):
         bati.mean = geometry["properties"]["mean"]
         bati.res_max = geometry["properties"]["res_max"]
         batis.append(bati)
-    
-
-    
     return batis

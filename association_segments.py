@@ -1,6 +1,4 @@
 import os
-#from pysocle.photogrammetry.ta import Ta
-from goutiere import Goutiere_image
 import geopandas as gpd
 import numpy as np
 from tqdm import tqdm
@@ -8,9 +6,6 @@ from bati import Bati
 import statistics
 import argparse
 from tools import get_mnt, get_raf, get_ta_xml, get_shots
-from rasterio import features, Affine
-import matplotlib.pyplot as plt
-from shapely import Point
 from sklearn.feature_extraction.image import extract_patches_2d
 from shot import MNT, RAF
 
@@ -50,9 +45,6 @@ def create_goutieres(shots, max_id, mnt):
     batis = [[] for i in range(max_id+1)]
     pvas = [i.split(".")[0] for i in os.listdir(shapefileDir)]
     # On parcouirt toutes les pvas du ta
-    #for flight in ta.project.get_flights():
-    #    for strip in flight.get_strips():
-    #        for shot in strip.get_shots():
     for shot in shots:
         # Si pour la pva on a un fichier shapefile avec des goutières :
         if shot.image in pvas:
@@ -302,22 +294,6 @@ def composante_connexe_bati(bati):
     return composantes_connexes
 
 
-
-def vectorize(bati:Bati, marge=20):
-
-    resolution = 0.2
-    geom = bati.emprise_sol()
-
-    bbox = geom.bounds
-    delta_y = int((bbox[3]-bbox[1])/resolution + 2 * marge / resolution)
-    delta_x = int((bbox[2]-bbox[0])/resolution + 2 * marge / resolution)
-    out_shape = (delta_y, delta_x)
-    transform = Affine(resolution, 0, bbox[0]-marge, 0, -resolution, bbox[3]+marge)
-
-    rasterized = features.rasterize([geom], out_shape=out_shape, fill=0, transform=transform, default_value=1, dtype=np.uint8)
-    return rasterized, transform, Point((bbox[2]+bbox[0])/2, (bbox[3]+bbox[1])/2)
-
-
 def compute_correlation(rasterized_b1, rasterized_b2, centre_b1, centre_b2):
     n, m = rasterized_b2.shape
     patches = extract_patches_2d(rasterized_b1, (n, m))
@@ -375,7 +351,6 @@ def reorganiser_goutieres_par_shapefile(batis):
                 dictionnaire[pva] = []
             for goutiere in b.goutieres:
                 dictionnaire[pva].append(goutiere)
-
     return dictionnaire
 
 

@@ -1,7 +1,7 @@
 from goutiereCalculee import GoutiereCalculee
 import os
 import geopandas as gpd
-from shapely import LineString, Polygon
+from shapely import Polygon
 import numpy as np
 from batiment import Batiment
 from typing import List

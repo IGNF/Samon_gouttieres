@@ -3,7 +3,7 @@ repertoire_BD_Uni=${2}
 chemin_emprise=${3:-None}
 
 
-repertoire_goutiere=${repertoire_chantier}/goutieres
+repertoire_goutiere=${repertoire_chantier}/gouttieres
 
 sh run.sh ${repertoire_chantier} ${chemin_emprise}
 

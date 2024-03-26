@@ -13,9 +13,6 @@ class Troncon:
 
         self.voisins:List[Troncon] = []
 
-    #def __str__(self) -> str:
-    #    return "{}, {}".format(self.p1, self.p2)
-
 
     def sont_voisins(self, t):
         """
@@ -63,5 +60,4 @@ class Troncon:
             return self.p2
         if p == self.p2:
             return self.p1
-        #print("Erreur")
         

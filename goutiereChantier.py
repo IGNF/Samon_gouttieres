@@ -1,4 +1,3 @@
-import os
 from goutiere import Goutiere
 from typing import List
 import numpy as np
@@ -6,7 +5,7 @@ import numpy as np
 
 class GoutiereChantier:
 
-    def __init__(self, id, ta, shapefileDir, goutieres, seuil = 0.2, methode="grand", maitresse_petite=True):
+    def __init__(self, id, shapefileDir, goutieres, seuil = 0.2, methode="grand", maitresse_petite=True):
         """
         id : id de la goutière
         ta : chemin vers le tableau d'assemblage
@@ -15,7 +14,6 @@ class GoutiereChantier:
         seuil : seuil pour les moindres carrés au-delà duquel on supprime les images.
         """
         self.id = id
-        self.ta = ta
         self.shapefileDir = shapefileDir
         self.goutieres:List[Goutiere] = goutieres
         self.seuil = seuil

@@ -6,14 +6,15 @@
 ## Mise en place d'un chantier
 
 Dans un répertoire chantier doit se trouver :
-* Un répertoire "Gouttieres" contenant un répertoire "predictions_FFL" avec les prédictions du Frame Field Learning sous format shapefile
+* Un répertoire "gouttieres" contenant un répertoire "predictions_FFL" avec les prédictions du Frame Field Learning sous format shapefile
 * Un répertoire "mnt" contenant un fichier vrt
 * Un répertoire "orientation" contenant le TA sous format xml. Il se trouve généralement dans store-ref/ortho-images/ImagesOrientees/FD[departement]/annee/[...]_AERO/AERO/[...]/*_adjust.XML
 * Un répertoire "raf" contenant la grille RAF
 
 Eventuellement, il peut s'y trouver :
-* un fichier shapefile de l'emprise du chantier qui nous intéresse.
+* un fichier shapefile (ou geojson) de l'emprise du chantier qui nous intéresse.
 * un fichier contenant les bâtiments de la BD Uni à recaler.
+* un répertoire contenant le lidar de la zone pour contrôler les résultats
 
 
 ## Installation
@@ -28,36 +29,76 @@ mamba env create -f environment.yaml
 
 ## Lignes de commandes
 
-Pour trouver les contours de bâtiments :
+Pour trouver les contours de bâtiments (chemin/chantier est le répertoire qui contient le chantier) :
 ```
 sh run.sh chemin/chantier
 ```
 
-Pour trouver les contours de bâtiments dans une zone délimitée par une emprise :
+Pour trouver les contours de bâtiments dans une zone délimitée par une emprise (l'emprise est un fichier shapefile ou geojson) :
 ```
 sh run.sh chemin/chantier chemin/emprise
 ```
 
 
-Pour recaler les bâtiments de la BD Uni :
+Pour recaler les bâtiments de la BD Uni (chemin/bd_uni est un répertoire qui contient la bd uni sous format shapefile) :
 ```
 sh run_recalage.sh chemin/chantier chemin/bd_uni
 ```
 
-Pour recaler les bâtiments de la BD Uni dans une zone délimitée par une emprise :
+Pour recaler les bâtiments de la BD Uni dans une zone délimitée par une emprise (l'emprise est un fichier shapefile ou geojson):
 ```
 sh run_recalage.sh chemin/chantier chemin/bd_uni chemin/emprise
 ```
 
 
 
+## Les fichiers résultats
+
+Dans plusieurs répertoires, on trouve deux types de fichiers shapefile : avec ou sans le suffixe "_projection". Ceux sans le suffixe sont dans la géométrie image, ceux avec le suffixe sont projetés sur le MNT et permet de superposer les shapefiles issus d'images différentes. Les fichiers xyz sont des fichiers 3D, à visualiser avec CloudCompare par exemple.
+
+Dans chantiers/gouttieres :
+* regroupe : prédictions du FFL après avoir regroupé en une seule géométrie les géométries jointives 
+* nettoye : prédictions du FFL où chaque segment correspond à un mur (sans points intermédiaires dans la géométrie)
+* association_bati : un bâtiment possède le même identifiant dans les différents fichiers shapefile
+* association_segments : un bord de toit possède le même identifiant dans les différents fichiers shapefile
+* intersection_plan : position 3D des bords de toit. En fichier shapefile, ce sont leurs projections 2D. Le fichier xyz peut se superposer avec du lidar.
+* batiments_fermes : on ferme les bâtiments à partir des bords de toit trouvés à l'étape précédente. En fichier shapefile, ce sont leurs projections 2D. Le fichier xyz peut se superposer avec du lidar.
+
+Dans le cas de run_recalage.sh, on trouve en plus :
+* BD_Uni_regroupee : BD Uni après avoir regroupé en une seule géométrie les géométries jointives
+* intersections_ajustees : lorsque deux segments voisins s'intersectent, on modifie leurs extrémités de façon à ce qu'elles correspondent à l'intersection
+* association_bati_BD_Uni : chaque bâtiment possède le même identifiant entre ce qui vient de la BD Uni et ce qui vient du calcul des gouttières
+* association_segments_BD_Uni : chaque bord de toit possède le même identifiant entre ce qui vient de la BD Uni et ce qui vient du calcul des gouttières
+* recalage : résultat des paramètres à appliquer (rotation, translation, facteur d'échelle) sur la BD Uni
+* BD_Uni_recalee : BD Uni recalée
+
+
+## Détail de certains fichiers
+
+### intersection_plan
+
+Les trois premières colonnes du fichier xyz sont les coordonnées de chaque point. La quatrième colonne correspond au nombre de segments qui ont été utilisés pour calculer le bord de toit.
+
+Dans le fichier shapefile, on trouve :
+* dist_mean : la distance moyenne entre le bord de toit calculé et les plans qui ont été utilisé pour le calcul
+* nb_plans_i : le nombre de plans utilisés au début du calcul
+* nb_plans : le nombre de plans utilisés pour calculer le bord de toit (la différence nb_plans_i-nb_plans correspond au nombre de plans qui n'ont pas été conservés dans le calcul car considérés comme faux ou pas assez précis)
+* x1, y1, z1 : coordonnées d'une extrémité
+* x2, y2, z2 : coordonnées de la deuxième extrémité
+* v_0 à v_6 : les identifiants des segments voisins
+
+### recalage
+
+* TX, TY, a, b : les paramètres de la transformation à l'issue du calcul
+* nb_points : nombre de points utilisés pour calculer la transformation
+* mean : écart moyen entre les points issus des bords de toits et après application de la transformation sur la BD Uni
+* res_max : écart maximal entre les points issus des bords de toits et après application de la transformation sur la BD Uni
+
+
 # A faire
 
-* Supprimer la bibliothèque Pysocle
 * Mettre au propre les chantiers sur store-echange.
 * Vérifier l'environnement.
-* Description des résultats obtenus
-
 
 
 

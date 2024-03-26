@@ -3,8 +3,8 @@ import pyproj
 from scipy.spatial.transform import Rotation as R
 from osgeo import gdal
 from scipy import ndimage
-from lxml import etree
 from shapely import Polygon
+import time
 
 class Shot:
     def __init__(self) -> None:
@@ -19,6 +19,9 @@ class Shot:
         self.crs = pyproj.CRS.from_string(self.proj["auth"])
         self.crs_geoc = pyproj.CRS.from_epsg(self.proj["epsg_geoc"])
         self.crs_geog = pyproj.CRS.from_epsg(self.proj["epsg_geog"])
+        self.carto_to_geoc = pyproj.Transformer.from_crs(self.crs, self.crs_geoc).transform
+        self.geoc_to_carto = pyproj.Transformer.from_crs(self.crs_geoc, self.crs).transform
+        self.carto_to_geog = pyproj.Transformer.from_crs(self.crs, self.crs_geog).transform
 
 
     @staticmethod
@@ -78,14 +81,14 @@ class Shot:
         shot.emprise = Polygon(points)
         return shot
 
-    def carto_to_geoc(self, x, y, z):
-        return pyproj.Transformer.from_crs(self.crs, self.crs_geoc).transform(x, y, z)
-
-    def geoc_to_carto(self, x, y, z):
-        return pyproj.Transformer.from_crs(self.crs_geoc, self.crs).transform(x, y, z)
-
-    def carto_to_geog(self, x, y):
-        return pyproj.Transformer.from_crs(self.crs, self.crs_geog).transform(x, y)
+    #def carto_to_geoc(self, x, y, z):
+    #    return pyproj.Transformer.from_crs(self.crs, self.crs_geoc).transform(x, y, z)
+#
+    #def geoc_to_carto(self, x, y, z):
+    #    return pyproj.Transformer.from_crs(self.crs_geoc, self.crs).transform(x, y, z)
+#
+    #def carto_to_geog(self, x, y):
+    #    return pyproj.Transformer.from_crs(self.crs, self.crs_geog).transform(x, y)
 
     def world_to_euclidean(self, x, y, z):
             """
@@ -161,9 +164,11 @@ class Shot:
         # initialisation
         # passage en local en faisant l'approximation z "local" a partir du z "world"
         # La fonction calcule le x et y euclidien correspondant à une coordonnées image et un Z local
+        
         type_input = type(c)
 
         z_world = dem.get(self.x_pos, self.y_pos)
+        
         z_world = np.full_like(c, z_world)
         x_local, y_local, z_local = self.image_z_to_local(c, l, z_world)
         # On a les coordonnées locales approchées (car z non local) on passe en world
@@ -175,8 +180,10 @@ class Shot:
             z_world = dem.get(x_world, y_world)
             # On repasse en euclidien avec le bon Zworld , l'approximation plani ayant un impact minime
             x_local, y_local, z_local = self.world_to_euclidean(x_world, y_world, z_world)
+
             # nouvelle transfo avec un zLocal plus precis
             x_local, y_local, z_local = self.image_z_to_local(c, l, z_local)
+
             # passage en terrain (normalement le zw obtenu devrait être quasiment identique au Z initial)
             x_world_new, y_world_new, z_world_new = self.euclidean_to_world(x_local, y_local, z_local)
 
@@ -294,10 +301,6 @@ class Shot:
         """
         lon, lat = self.carto_to_geog(x, y)
         gamma = self.get_meridian_convergence(x, y)
-
-        # rot_to_euclidean_local = R.from_euler("z", -(90+gamma), degrees=True) *\
-        #                          R.from_euler("y", -(90-lat), degrees=True) *\
-        #                          R.from_euler("z", -lon, degrees=True)
 
         # Matrice de passage en coordonnees cartesiennes locales
         sl = np.sin(lon * np.pi/180)

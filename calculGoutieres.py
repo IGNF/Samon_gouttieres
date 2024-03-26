@@ -1,4 +1,3 @@
-from pysocle.photogrammetry.ta import Ta
 import os
 from goutiere import Goutiere, Goutiere_image
 import numpy as np
@@ -8,6 +7,8 @@ from shapely import LineString
 import geopandas as gpd
 from goutiereChantier import GoutiereChantier
 from tqdm import tqdm
+from shot import MNT, RAF
+from tools import get_shots
 
 class CalculGoutieres:
 
@@ -27,8 +28,8 @@ class CalculGoutieres:
         
         self.ta_xml = ta_xml
         self.shapefileDir = shapefileDir
-        self.mnt = mnt
-        self.raf = raf
+        self.mnt = MNT(mnt)
+        self.raf = RAF(raf)
         self.pva = pva
         self.resultats = resultats
         self.liste_id = None
@@ -40,17 +41,6 @@ class CalculGoutieres:
             os.remove(self.path_saved_points_cloud)
 
         self.goutieres:List[Goutiere] = []
-
-        # On charge le tableau d'assemblage avec PySocle
-        self.ta = Ta.from_xml(self.ta_xml)
-        print("Fichier xml chargé")
-
-        # On ajoute le mnt à Pysocle
-        self.ta.project.add_dem(self.mnt)
-        print("MNT ajouté")
-
-        # Dans les fichiers TA, ce sont des hauteurs ellipsoïdales. Il faut les convertir en altitude
-        self.ta.project.conversion_elevation(self.raf, "a")
 
         # On récupère la liste des identifiants et l'identifiant maximum de goutières qui existent dans les différents shapefiles
         self.liste_id, self.max_id, self.max_id_unique = self.get_id()
@@ -94,7 +84,7 @@ class CalculGoutieres:
         gdf.to_file(os.path.join(self.resultats, "goutiere.shp"))
 
 
-    def charger_goutieres(self):
+    def charger_goutieres(self, shots):
         """
         Crée un objet goutière pour chaque objet présent dans un des fichiers shapefiles 
         """
@@ -106,30 +96,29 @@ class CalculGoutieres:
         liste_id_unique = [[] for i in range(self.max_id_unique+1)]
 
         # On parcourt tous les shots du ta
-        for flight in self.ta.project.get_flights():
-            for strip in flight.get_strips():
-                for shot in strip.get_shots():
-                    # Si pour le shot, on a un fichier shapefile de goutières
-                    if shot.image in pvas:
-                        # On parcourt toutes les géométries du fichier shapefile
-                        gdf = gpd.read_file(os.path.join(self.shapefileDir, shot.image+".shp"))
-                        for geometry in gdf.iterfeatures():
-                            # On crée un objet goutière
-                            id = int(geometry["properties"]["id"])
-                            if id != -1:
-                                coordinates = geometry["geometry"]["coordinates"]
-                                image_line = np.array([[coordinates[0][0], -coordinates[0][1]], [coordinates[1][0], -coordinates[1][1]]])       
-                                goutiere = Goutiere_image(shot, os.path.join(self.shapefileDir, shot.image+".shp"), self.ta.project.dem, id)
-                                goutiere.set_image_line(image_line, compute_equation_plan=True)
-                                goutiere.id_bati = geometry["properties"]["id_bati"]
-                                id_unique = geometry["properties"]["id_unique"]
-                                goutiere.id_unique = id_unique
-                                goutiere.voisin_1 = geometry["properties"]["voisin_1"]
-                                goutiere.voisin_2 = geometry["properties"]["voisin_2"]
-                                # On ajoute la goutière dans la liste à la position de son id
-                                liste[id].append(goutiere)
-                                #print(id_unique, len(liste_id_unique))
-                                liste_id_unique[id_unique].append(goutiere)
+        for shot in shots:
+            # Si pour le shot, on a un fichier shapefile de goutières
+            if shot.image in pvas:
+                # On parcourt toutes les géométries du fichier shapefile
+                gdf = gpd.read_file(os.path.join(self.shapefileDir, shot.image+".shp"))
+                print("Chargement de l'image {}".format(shot.image+".shp"))
+                for geometry in tqdm(gdf.iterfeatures()):
+                    # On crée un objet goutière
+                    id = int(geometry["properties"]["id"])
+                    if id != -1:
+                        coordinates = geometry["geometry"]["coordinates"]
+                        image_line = np.array([[coordinates[0][0], -coordinates[0][1]], [coordinates[1][0], -coordinates[1][1]]])       
+                        goutiere = Goutiere_image(shot, os.path.join(self.shapefileDir, shot.image+".shp"), self.mnt, id)
+                        goutiere.set_image_line(image_line, compute_equation_plan=True)
+                        goutiere.id_bati = geometry["properties"]["id_bati"]
+                        id_unique = geometry["properties"]["id_unique"]
+                        goutiere.id_unique = id_unique
+                        goutiere.voisin_1 = geometry["properties"]["voisin_1"]
+                        goutiere.voisin_2 = geometry["properties"]["voisin_2"]
+                        # On ajoute la goutière dans la liste à la position de son id
+                        liste[id].append(goutiere)
+                        #print(id_unique, len(liste_id_unique))
+                        liste_id_unique[id_unique].append(goutiere)
         return liste, liste_id_unique
                         
 
@@ -155,7 +144,9 @@ class CalculGoutieres:
         nb_plans_init = []
         id_batiment = []
 
-        chantiers, liste_id_unique = self.charger_goutieres()
+        shots = get_shots(self.ta_xml, self.shapefileDir, self.raf)
+
+        chantiers, liste_id_unique = self.charger_goutieres(shots)
 
         # On parcourt tous les id présents dans les shapefile
         for chantier_goutieres in tqdm(chantiers):
@@ -165,7 +156,7 @@ class CalculGoutieres:
                 id = chantier_goutieres[0].id
                 print("Chantier {}".format(id))
                 # On crée un objet chantier
-                chantier = GoutiereChantier(id, self.ta, self.shapefileDir, chantier_goutieres, methode="grand")
+                chantier = GoutiereChantier(id, self.shapefileDir, chantier_goutieres, methode="grand")
                 nb_plans_initiaux = len(chantier.goutieres)
                 # On calcule l'intersection des segments par moindres carrés
                 chantier.moindres_carres()
@@ -178,7 +169,7 @@ class CalculGoutieres:
 
                 
 
-                if len(chantier.goutieres) >= 2:
+                if len(chantier.goutieres) >= 2 and chantier.d_mean < 1:
 
                     # On enregistre les résultats dans un fichier shapefile
                     nb_plans_init.append(nb_plans_initiaux)

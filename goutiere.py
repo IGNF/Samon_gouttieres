@@ -1,4 +1,3 @@
-import geopandas as gpd
 import numpy as np
 from shapely import LineString, Point
 
@@ -208,34 +207,7 @@ class Goutiere_image(Goutiere):
         if printout:
             print("Distance à la droite : ", np.sqrt(np.sum((p1-p2)**2)))
 
-        return X1 + l1 * u1, np.sqrt(np.sum((p1-p2)**2))
-
-
-    """def read_file(self) -> None:
-
-        Ouvre le fichier shapefile et récupère la goutière ayant pour identifiant self.id
-
-        gdf = gpd.read_file(self.path)
-
-        trouve = False
-
-        ids = gdf.index[gdf['id'] == self.id]
-        if len(ids.to_list()) > 0:
-            geometry = gdf.iloc[ids]
-            coordonnees = geometry["geometry"].get_coordinates()
-            self.image_line = np.array([[coordonnees.iat[0,0], -coordonnees.iat[0,1]], [coordonnees.iat[1,0], -coordonnees.iat[1,1]]])
-            trouve = True
-        
-        # Si la goutière a été trouvée, alors on calcule les paramètres du plan 
-        if trouve:
-            self.get_plan()
-            self.equation_plan()
-        return trouve"""
-
-    
-    
-
-
+        return X1 + l1 * u1, np.sqrt(np.sum((p1-p2)**2)) 
 
 
     def get_image_geometry(self, superpose_pva=False):

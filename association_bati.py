@@ -1,6 +1,5 @@
 import os
 import geopandas as gpd
-#import numpy as np
 from tqdm import tqdm
 from bati import Bati
 import argparse
@@ -25,10 +24,7 @@ def create_goutieres(shots, emprise, mnt):
     """
     batis_par_shapefile = []
     pvas = [i.split(".")[0] for i in os.listdir(shapefileDir)]
-    # On parcouirt toutes les pvas du ta
-    #for flight in ta.project.get_flights():
-    #    for strip in flight.get_strips():
-    #        for shot in strip.get_shots():
+    # On parcourt toutes les pvas du ta
     for shot in shots:
         # Si pour la pva on a un fichier shapefile avec des goutières :
         if shot.image in pvas:
@@ -202,12 +198,8 @@ if __name__=="__main__":
     # On charge l'emprise du chantier
     emprise = charger_emprise(chemin_emprise)
 
-    # Dans les fichiers TA, ce sont des hauteurs ellipsoïdales. Il faut les convertir en altitude
-    #ta.project.conversion_elevation(raf, "a")
-
     # On crée les objets gouttières à partir des segments
     batis_par_shapefile = create_goutieres(shots, emprise, mnt)
-    print(batis_par_shapefile)
     print("Gouttières créées")
 
     # On construit pour chaque image une géosérie des bâtiments afin de faciliter la recherche d'intersections
