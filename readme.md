@@ -25,6 +25,11 @@ Cinq chantiers sont disponibles dans store-echange/CelestinHuet/Samon_gouttieres
 
 Forteresse de Mont-Dauphin. Ce chantier ne fonctionne qu'avec la commande run.sh car la BD Uni n'est pas présente dans ce chantier (donc pas de recalage possible)
 
+Exemple de commande : 
+```
+python run.py --chantier chantiers/05_2022/
+```
+
 ### Marseille
 
 Quatre zones de Marseille. Il est possible de l'utiliser pour le recalage. Le répertoire BD_Uni_verite_terrain contient la BD Uni parfaitement recalée (saisie dans le cadre d'un autre projet il y a quelques années), mais sans la contrainte d'appliquer une rotation, une translation et un facteur d'échelle.
@@ -36,7 +41,7 @@ Les zones sont :
 
 Exemple de commande : 
 ```
-sh run_recalage.sh chantiers/Marseille_zone_1/ chantiers/Marseille_zone_1/BDUNI/ chantiers/Marseille_zone_1/zone_periurbaine_1.geojson
+python run_recalage.py --chantier chantiers/Marseille_zone_1/ --bduni chantiers/Marseille_zone_1/BDUNI/ --emprise chantiers/Marseille_zone_1/zone_periurbaine_1.geojson 
 ```
 
 
@@ -122,13 +127,6 @@ Dans le fichier shapefile, on trouve :
 * nb_points : nombre de points utilisés pour calculer la transformation
 * mean : écart moyen entre les points issus des bords de toits et après application de la transformation sur la BD Uni
 * res_max : écart maximal entre les points issus des bords de toits et après application de la transformation sur la BD Uni
-
-
-# A faire
-
-* Mettre au propre les chantiers sur store-echange.
-* Vérifier l'environnement.
-
 
 
 

@@ -76,7 +76,7 @@ def graphe_connexe(batis_par_shapefile):
                 id_bati += 1
 
 
-def sauvegarde_projection(batis_par_shapefile):
+def sauvegarde_projection(batis_par_shapefile, output):
     for shapefile in batis_par_shapefile:
         id = []
         polygones = []
@@ -92,19 +92,7 @@ def sauvegarde_projection(batis_par_shapefile):
         gdf.to_file(os.path.join(output, shapefile["shapefile"]+".shp"))
 
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="On associe le même identifiant à tous les polygones représentant un même bâtiment")
-    parser.add_argument('--input_gouttieres', help='Répertoire où se trouvent les bâtiments fermés')
-    parser.add_argument('--input_BD_Uni', help='Répertoire contenant les bâtiments de la BD Uni à recaler')
-    parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
-    args = parser.parse_args()
-
-
-    input_gouttieres = args.input_gouttieres
-    input_BD_Uni = args.input_BD_Uni
-    output = args.output
-
+def association_bati_bd_uni(input_gouttieres, input_BD_Uni, output):
     if not os.path.exists(output):
         os.makedirs(output)
 
@@ -122,4 +110,22 @@ if __name__ == "__main__":
 
     graphe_connexe(batis_par_shapefile)
 
-    sauvegarde_projection(batis_par_shapefile)
+    sauvegarde_projection(batis_par_shapefile, output)
+
+
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="On associe le même identifiant à tous les polygones représentant un même bâtiment")
+    parser.add_argument('--input_gouttieres', help='Répertoire où se trouvent les bâtiments fermés')
+    parser.add_argument('--input_BD_Uni', help='Répertoire contenant les bâtiments de la BD Uni à recaler')
+    parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
+    args = parser.parse_args()
+
+
+    input_gouttieres = args.input_gouttieres
+    input_BD_Uni = args.input_BD_Uni
+    output = args.output
+
+    association_bati_bd_uni(input_gouttieres, input_BD_Uni, output)
+    

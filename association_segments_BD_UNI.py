@@ -7,19 +7,11 @@ from association_segments import association, reorganiser_goutieres_par_shapefil
 from bati import BatiProjete
 
 
-parser = argparse.ArgumentParser(description="On associe le même identifiant à tous les segments représentant un même mur")
-parser.add_argument('--input', help='Répertoire où se trouvent les résultats de association_bati_BD_UNI.py')
-parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
-args = parser.parse_args()
-
-
-input = args.input
-output = args.output
 
 
 
 
-def get_id_bati_max():
+def get_id_bati_max(input):
     liste_id = []
     max_id = 0
     shapefiles = [i for i in os.listdir(input) if i[-4:] == ".shp"]
@@ -36,7 +28,7 @@ def get_id_bati_max():
     return liste_id, max_id
 
 
-def create_goutieres(max_id):
+def create_goutieres(max_id, input):
     """
     On retire de la liste des shots tous les shots dont les pvas correspondantes sont manquantes
     """
@@ -93,19 +85,31 @@ def create_goutieres(max_id):
 
 
 
+def association_segments_bd_uni(input, output):
+    if not os.path.exists(output):
+        os.makedirs(output)
 
-if not os.path.exists(output):
-    os.makedirs(output)
+
+    # Récupère l'identifiant maximum présent dans le bati
+    liste_id, max_id = get_id_bati_max(input)
+    batis = create_goutieres(max_id, input)
+
+    association(batis, minimum_batiment=2)
+    goutieres_par_shapefile = reorganiser_goutieres_par_shapefile(batis)
+
+    sauvegarde_projection(goutieres_par_shapefile, output, save_voisin=False)
 
 
-# Récupère l'identifiant maximum présent dans le bati
-liste_id, max_id = get_id_bati_max()
-batis = create_goutieres(max_id)
 
-#for bati in batis:
-#    print(bati)
 
-association(batis, minimum_batiment=2)
-goutieres_par_shapefile = reorganiser_goutieres_par_shapefile(batis)
+if __name__=="__main__":
 
-sauvegarde_projection(goutieres_par_shapefile, output, save_voisin=False)
+    parser = argparse.ArgumentParser(description="On associe le même identifiant à tous les segments représentant un même mur")
+    parser.add_argument('--input', help='Répertoire où se trouvent les résultats de association_bati_BD_UNI.py')
+    parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
+    args = parser.parse_args()
+
+
+    input = args.input
+    output = args.output
+    association_segments_bd_uni(input, output)

@@ -8,19 +8,7 @@ from bati import BatiProjete
 import random
 
 
-parser = argparse.ArgumentParser(description="On trouve les 4 paramètres pour le recalage de la BD Uni sur la BD Ortho")
-parser.add_argument('--input', help='Répertoire où se trouvent les résultats de association_segments_BD_UNI.py')
-parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
-args = parser.parse_args()
-
-
-input = args.input
-output = args.output
-
-seuil = 1
-
-
-def get_id_bati_max():
+def get_id_bati_max(input):
     liste_id = []
     max_id = 0
     shapefiles = [i for i in os.listdir(input) if i[-4:] == ".shp"]
@@ -37,7 +25,7 @@ def get_id_bati_max():
     return liste_id, max_id
 
 
-def create_goutieres(max_id):
+def create_goutieres(max_id, input):
     """
     On retire de la liste des shots tous les shots dont les pvas correspondantes sont manquantes
     """
@@ -175,7 +163,7 @@ def calculer_inliers(parametres, points, seuil):
 def compute_k(a, b):
     return np.sqrt(a**2 + b**2)
 
-def ransac(points, iteration):
+def ransac(points, iteration, seuil):
     """
     On applique un Ransac pour déterminer une première estimation des paramètres de la transformation de Helmert et supprimer les points faux
     """
@@ -294,7 +282,7 @@ def moindres_carres(liste_points):
     return parametres, nb_points, mean, res_max
 
 
-def compute_recalage(batis):
+def compute_recalage(batis, seuil):
     """
     batis est une liste de bâtiments qui proviennent de la BD Uni ou de la reconstruction
     """
@@ -304,7 +292,7 @@ def compute_recalage(batis):
     # On crée une liste de points à partir desquels on va calculer la transformation
     liste_points = creer_liste_points(batis_bd_uni, batis_gouttieres)
     # Avec du ransac, on supprime les points faux
-    liste_points = ransac(liste_points, 100)
+    liste_points = ransac(liste_points, 100, seuil)
     # Avec les points restants, on calcule la transformation avec la méthode des moindres carrés
     parametres, nb_points, mean, res_max = moindres_carres(liste_points)
     if parametres is not None:
@@ -317,7 +305,7 @@ def compute_recalage(batis):
 
 
     
-def sauvegarde_projection(batis_bd_uni):
+def sauvegarde_projection(batis_bd_uni, output):
     id = []
     polygones = []
     TX = []
@@ -344,28 +332,44 @@ def sauvegarde_projection(batis_bd_uni):
         gdf.to_file(os.path.join(output, "recalage.shp"))
 
 
+def recalage(input, output):
+    seuil = 1
+    if not os.path.exists(output):
+        os.makedirs(output)
 
-if not os.path.exists(output):
-    os.makedirs(output)
+
+    # Récupère l'identifiant maximum présent dans le bati
+    liste_id, max_id = get_id_bati_max(input)
+    batis = create_goutieres(max_id, input)
+
+    batis_bd_uni = []
+
+    # On parcourt les bâtiments
+    for bati in tqdm(batis):
+
+        if len(bati) >= 2:
+            print("")
+            print("")
+            # On calcule le recalage
+            bati_bd_uni = compute_recalage(bati, seuil)
+            for b in bati_bd_uni:
+                
+                batis_bd_uni.append(b)
+
+    sauvegarde_projection(batis_bd_uni, output)
 
 
-# Récupère l'identifiant maximum présent dans le bati
-liste_id, max_id = get_id_bati_max()
-batis = create_goutieres(max_id)
 
-batis_bd_uni = []
+if __name__=="__main__":
 
-# On parcourt les bâtiments
-for bati in tqdm(batis):
+    parser = argparse.ArgumentParser(description="On trouve les 4 paramètres pour le recalage de la BD Uni sur la BD Ortho")
+    parser.add_argument('--input', help='Répertoire où se trouvent les résultats de association_segments_BD_UNI.py')
+    parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
+    args = parser.parse_args()
 
-    if len(bati) >= 2:
-        print("")
-        print("")
-        # On calcule le recalage
-        bati_bd_uni = compute_recalage(bati)
-        for b in bati_bd_uni:
-            
-            batis_bd_uni.append(b)
 
-sauvegarde_projection(batis_bd_uni)
+    input = args.input
+    output = args.output
 
+    recalage(input, output)
+    

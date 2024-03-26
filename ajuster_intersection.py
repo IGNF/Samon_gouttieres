@@ -6,27 +6,15 @@ from batiment import Batiment
 import argparse
 from fermer_batiment import get_id_bati_max, charger_goutieres
 
-parser = argparse.ArgumentParser(description="On ferme les bâtiments")
-parser.add_argument('--input', help='Répertoire où se trouvent le résultat de intersection_plan')
-parser.add_argument('--emprise', help='Répertoire où sauvegarder les résultats')
-parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
-args = parser.parse_args()
 
-# répertoire contenant les résultats du script association_segments.py
-shapefileDir = args.input
-resultat = args.output
-chemin_emprise = args.emprise
 
-resolution = 0.5
 
-if not os.path.exists(resultat):
-    os.makedirs(resultat)
 
 
 
 def charger_emprise(chemin_emprise):
     gdf = None
-    if chemin_emprise != "None":
+    if chemin_emprise != "None" and chemin_emprise is not None:
         gdf = gpd.read_file(chemin_emprise).geometry
     return gdf
 
@@ -44,7 +32,7 @@ def ajuster(batiment:Batiment):
     batiment.ajuster_intersection()
 
 
-def sauvegarde_shapefile(batiments):
+def sauvegarde_shapefile(batiments, resultat):
     id = []
     geometries = []
     for batiment in batiments:
@@ -57,34 +45,59 @@ def sauvegarde_shapefile(batiments):
     gdf.to_file(os.path.join(resultat, "intersections_ajustees.shp"))
 
 
-def sauvegarder_points(batiments):
+def sauvegarder_points(batiments, resultat, resolution):
     for batiment in batiments:
         for segment in batiment.segments:
-                    p1 = np.array([[segment.p1.x], [segment.p1.y], [segment.p1.z]])
-                    p2 = np.array([[segment.p2.x], [segment.p2.y], [segment.p2.z]])
-                    u = p2 - p1
-                    norm_u = np.linalg.norm(u)
-                    if norm_u > 0 and norm_u < 200:
-                        u_norm = u / norm_u
-                        nb_points = int(norm_u / resolution)
+            p1 = np.array([[segment.p1.x], [segment.p1.y], [segment.p1.z]])
+            p2 = np.array([[segment.p2.x], [segment.p2.y], [segment.p2.z]])
+            u = p2 - p1
+            norm_u = np.linalg.norm(u)
+            if norm_u > 0 and norm_u < 200:
+                u_norm = u / norm_u
+                nb_points = int(norm_u / resolution)
 
-                        with open(os.path.join(resultat, "intersections_ajustees.txt"), "a") as f:
-                            for i in range(nb_points):
-                                p = p1 + i * resolution * u_norm
-                                f.write("{} {} {}\n".format(p[0, 0], p[1, 0], p[2, 0]))
-
-
-max_id, max_id_chantier = get_id_bati_max(shapefileDir)
-
-emprise = charger_emprise(chemin_emprise)
-
-# On charge les goutières
-liste_bati, liste_goutieresCalculees, batiments = charger_goutieres(shapefileDir, max_id, max_id_chantier, emprise=emprise)
-
-for batiment in batiments:
-    ajuster(batiment)
+                with open(os.path.join(resultat, "intersections_ajustees.txt"), "a") as f:
+                    for i in range(nb_points):
+                        p = p1 + i * resolution * u_norm
+                        f.write("{} {} {}\n".format(p[0, 0], p[1, 0], p[2, 0]))
 
 
-sauvegarde_shapefile(batiments)
-sauvegarder_points(batiments)
+def ajuster_intersections(shapefileDir, resultat, chemin_emprise):
+
+    resolution = 0.5
+
+    if not os.path.exists(resultat):
+        os.makedirs(resultat)
+
+    max_id, max_id_chantier = get_id_bati_max(shapefileDir)
+
+    emprise = charger_emprise(chemin_emprise)
+
+    # On charge les goutières
+    liste_bati, liste_goutieresCalculees, batiments = charger_goutieres(shapefileDir, max_id, max_id_chantier, emprise=emprise)
+
+    for batiment in batiments:
+        ajuster(batiment)
+
+
+    sauvegarde_shapefile(batiments, resultat)
+    sauvegarder_points(batiments, resultat, resolution)
+
+
+if __name__=="__main__":
+    parser = argparse.ArgumentParser(description="On ferme les bâtiments")
+    parser.add_argument('--input', help='Répertoire où se trouvent le résultat de intersection_plan')
+    parser.add_argument('--emprise', help='Répertoire où sauvegarder les résultats')
+    parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
+    args = parser.parse_args()
+
+    # répertoire contenant les résultats du script association_segments.py
+    shapefileDir = args.input
+    resultat = args.output
+    chemin_emprise = args.emprise
+
+    ajuster_intersections(shapefileDir, resultat, chemin_emprise)
+
+
+
     

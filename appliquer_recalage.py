@@ -11,20 +11,6 @@ from association_bati_BD_UNI import construire_geoseries
 from batiRecalage import Bati_2D, Bati_gouttieres_2D, charger_bati, charger_bati_gouttieres, charger_bati_gouttieres_rapide
 
 
-parser = argparse.ArgumentParser(description="On trouve les 4 paramètres pour le recalage de la BD Uni sur la BD Ortho")
-parser.add_argument('--input_gouttieres', help='Répertoire où se trouvent les résultats de recalage.py')
-parser.add_argument('--input_BD_Uni', help='Répertoire contenant les bâtiments de la BD Uni à recaler')
-parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
-args = parser.parse_args()
-
-
-input_gouttieres = args.input_gouttieres
-input_BD_Uni = args.input_BD_Uni
-output = args.output
-
-
-
-
 def association(bati_goutieres, bati_bd_uni, geoseries):
     # On parcourt chaque shapefile
     geoserie = geoseries["goutieres"]
@@ -81,7 +67,7 @@ def get_id_max(chemin):
     return [[] for i in range(id_max+1)]
 
 
-def sauvegarde_projection(bati_bd_uni):
+def sauvegarde_projection(bati_bd_uni, output):
     polygones = []
     nb_points = []
     mean = []
@@ -97,17 +83,36 @@ def sauvegarde_projection(bati_bd_uni):
     gdf.to_file(os.path.join(output, "emprise_finale.shp"))
 
 
-if not os.path.exists(output):
-    os.makedirs(output)
+def appliquer_recalage(input_gouttieres, input_BD_Uni, output):
 
-liste_id = get_id_max(input_gouttieres)
-#bati_goutieres = charger_bati(input_gouttieres, cas_parametres=True)
-bati_goutieres = charger_bati_gouttieres_rapide(input_gouttieres, "id", liste_id=liste_id)
-bati_bd_uni = charger_bati(input_BD_Uni, "cleabs")
+    if not os.path.exists(output):
+        os.makedirs(output)
 
-batis_par_shapefile = [{"shapefile":"goutieres", "batis":bati_goutieres}, {"shapefile":"bd_uni", "batis":bati_bd_uni}]
-geoseries = construire_geoseries(batis_par_shapefile)
+    liste_id = get_id_max(input_gouttieres)
+    bati_goutieres = charger_bati_gouttieres_rapide(input_gouttieres, "id", liste_id=liste_id)
+    bati_bd_uni = charger_bati(input_BD_Uni, "cleabs")
 
-association(bati_goutieres, bati_bd_uni, geoseries)
-recalculer_points(bati_bd_uni)
-sauvegarde_projection(bati_bd_uni)
+    batis_par_shapefile = [{"shapefile":"goutieres", "batis":bati_goutieres}, {"shapefile":"bd_uni", "batis":bati_bd_uni}]
+    geoseries = construire_geoseries(batis_par_shapefile)
+
+    association(bati_goutieres, bati_bd_uni, geoseries)
+    recalculer_points(bati_bd_uni)
+    sauvegarde_projection(bati_bd_uni, output)
+
+
+
+
+if __name__=="__main__":
+
+    parser = argparse.ArgumentParser(description="On trouve les 4 paramètres pour le recalage de la BD Uni sur la BD Ortho")
+    parser.add_argument('--input_gouttieres', help='Répertoire où se trouvent les résultats de recalage.py')
+    parser.add_argument('--input_BD_Uni', help='Répertoire contenant les bâtiments de la BD Uni à recaler')
+    parser.add_argument('--output', help='Répertoire où sauvegarder les résultats')
+    args = parser.parse_args()
+
+
+    input_gouttieres = args.input_gouttieres
+    input_BD_Uni = args.input_BD_Uni
+    output = args.output
+
+    appliquer_recalage(input_gouttieres, input_BD_Uni, output)
