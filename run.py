@@ -12,8 +12,13 @@ def run(chantier, emprise):
 
     gouttieres = os.path.join(chantier, "gouttieres")
 
+    print("Regroupement des géométries jointives")
     dissolve(os.path.join(gouttieres, "predictions_FFL"), os.path.join(gouttieres, "regroupe"))
+
+    print("Nettoyage des géométries")
     nettoyage(os.path.join(gouttieres, "regroupe"), os.path.join(gouttieres, "nettoye"))
+    
+    print("Association d'un même identifiant aux bâtiments")
     association_bati(
         os.path.join(gouttieres, "nettoye"),
         os.path.join(chantier, "mnt"),
@@ -23,6 +28,7 @@ def run(chantier, emprise):
         os.path.join(gouttieres, "association_bati")
     )
 
+    print("Association d'un même identifiant aux murs")
     association_segments(
         os.path.join(gouttieres, "association_bati"),
         os.path.join(chantier, "mnt"),
@@ -31,6 +37,7 @@ def run(chantier, emprise):
         os.path.join(gouttieres, "association_segments")
     )
 
+    print("Calcul des gouttières")
     intersection_plan(
         os.path.join(gouttieres, "association_segments"),
         os.path.join(chantier, "mnt"),
@@ -39,6 +46,7 @@ def run(chantier, emprise):
         os.path.join(gouttieres, "intersection_plan")
     )
 
+    print("Fermeture des bâtiments")
     fermer_batiment_main(
         os.path.join(gouttieres, "intersection_plan"),
         os.path.join(gouttieres, "batiments_fermes")

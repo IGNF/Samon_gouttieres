@@ -56,13 +56,14 @@ def get_centre_rep_local(root):
 def get_shots(ta_xml, pvas_dir, raf):
     tree = etree.parse(ta_xml)
     root = tree.getroot()
-    focale = getFocale(root)
     centre_rep_local = get_centre_rep_local(root)
     pvas = [i.split(".")[0] for i in os.listdir(pvas_dir)]
     shots = []
-    for cliche in root.getiterator("cliche"):
-        image = cliche.find("image").text.strip()
-        if image in pvas:
-            shot = Shot.createShot(cliche, focale, raf, centre_rep_local)
-            shots.append(shot)
+    for vol in root.getiterator("vol"):
+        focale = getFocale(vol)
+        for cliche in vol.getiterator("cliche"):
+            image = cliche.find("image").text.strip()
+            if image in pvas:
+                shot = Shot.createShot(cliche, focale, raf, centre_rep_local)
+                shots.append(shot)
     return shots

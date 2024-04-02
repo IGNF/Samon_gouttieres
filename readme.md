@@ -34,6 +34,16 @@ Exemple de commande :
 python run.py --chantier chantiers/05_2022/
 ```
 
+
+### 49_2022
+
+Martigné-Briand. Ce chantier ne fonctionne qu'avec la commande run.py car la BD Uni n'est pas présente dans ce chantier (donc pas de recalage possible)
+
+Exemple de commande : 
+```
+python run.py --chantier chantiers/49_2022/
+```
+
 ### Marseille
 
 Quatre zones de Marseille. Il est possible de l'utiliser pour le recalage. Le répertoire BD_Uni_verite_terrain contient la BD Uni parfaitement recalée (saisie dans le cadre d'un autre projet il y a quelques années), mais sans la contrainte d'appliquer une rotation, une translation et un facteur d'échelle.
