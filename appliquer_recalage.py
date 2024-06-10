@@ -1,14 +1,11 @@
 import os
 import geopandas as gpd
-from tqdm import tqdm
 import argparse
 import numpy as np
-from goutiere import Goutiere_proj
-from bati import Bati
-import random
-from shapely import Polygon, MultiLineString, convex_hull, MultiPoint
+from shapely import Polygon
 from association_bati_BD_UNI import construire_geoseries
-from batiRecalage import Bati_2D, Bati_gouttieres_2D, charger_bati, charger_bati_gouttieres, charger_bati_gouttieres_rapide
+from batiRecalage import charger_bati, charger_bati_gouttieres_rapide
+import pandas as pd
 
 
 def association(bati_goutieres, bati_bd_uni, geoseries):
@@ -67,19 +64,26 @@ def get_id_max(chemin):
     return [[] for i in range(id_max+1)]
 
 
-def sauvegarde_projection(bati_bd_uni, output):
+def sauvegarde_projection(bati_bd_uni, output, input_BD_Uni):
     polygones = []
     nb_points = []
     mean = []
     res_max = []
+    id_origine = []
     for bati in bati_bd_uni:
         polygones.append(bati.polygon)
         nb_points.append(bati.nb_points)
         mean.append(bati.mean)
         res_max.append(bati.res_max)
+        id_origine.append(bati.id_origine)
     
-    d = {"nb_points":nb_points, "mean":mean, "res_max":res_max, "geometry": polygones}
+    d = {"nb_points":nb_points, "mean":mean, "res_max":res_max, "cleabs":id_origine, "geometry": polygones}
     gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
+
+    gdf_BD_Uni = gpd.read_file(input_BD_Uni)
+    df1 = pd.DataFrame(gdf_BD_Uni.drop(columns='geometry'))
+    gdf = gdf.merge(df1, on="cleabs")
+
     gdf.to_file(os.path.join(output, "emprise_finale.shp"))
 
 
@@ -97,7 +101,7 @@ def appliquer_recalage(input_gouttieres, input_BD_Uni, output):
 
     association(bati_goutieres, bati_bd_uni, geoseries)
     recalculer_points(bati_bd_uni)
-    sauvegarde_projection(bati_bd_uni, output)
+    sauvegarde_projection(bati_bd_uni, output, input_BD_Uni)
 
 
 
