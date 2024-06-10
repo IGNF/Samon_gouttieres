@@ -54,7 +54,7 @@ def recalculer_points(bati_bd_uni):
                 for point in b_uni.polygon.boundary.coords:
                     X = np.array([[point[0]], [point[1]]])
                     Y = rot_1 @ (X - T)
-                    points.append((Y[0,0], Y[1,0]))
+                    points.append((Y[0,0], Y[1,0], point[2]))
         if len(points) > 2:
             b_uni.polygon = Polygon(points)
 
