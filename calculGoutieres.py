@@ -190,8 +190,8 @@ class CalculGoutieres:
                             dict_voisins["v_{}".format(i)].append(None)
                     
                     geometry.append(LineString([
-                        (chantier.p1[0,0], chantier.p1[1,0]), 
-                        (chantier.p2[0,0], chantier.p2[1,0])]))
+                        (chantier.p1[0,0], chantier.p1[1,0], chantier.p1[2,0]), 
+                        (chantier.p2[0,0], chantier.p2[1,0], chantier.p2[2,0])]))
                     
                     # On sauvegarde les résultats dans un fichier xyz
                     if self.save_points_cloud:
