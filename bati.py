@@ -1,5 +1,6 @@
+from __future__ import annotations
 from goutiere import Goutiere_image, Goutiere_proj
-from shapely import Polygon, MultiLineString
+from shapely import Polygon, MultiLineString, intersection, union
 from shapely.validation import make_valid
 import numpy as np
 from typing import List
@@ -138,6 +139,15 @@ class Bati:
         for s in self.goutieres:
             points.append([s.P0(), s.P1()])
         return MultiLineString(points)
+    
+
+    def compute_IoU(self, b2:Bati):
+        footprint_1 = self.emprise_sol()
+        footprint_2 = b2.emprise_sol()
+        intersection_area = intersection(footprint_1, footprint_2).area
+        union_area = union(footprint_1, footprint_2).area
+        return intersection_area / union_area
+
     
 
 

@@ -1,6 +1,13 @@
-from goutiere import Goutiere
+from goutiere import Goutiere_image
 from typing import List
 import numpy as np
+import logging
+
+logging.basicConfig(filename='Moindres_carres.log', level=logging.INFO, format='%(asctime)s : %(levelname)s : %(module)s : %(message)s')
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+logging.getLogger('').addHandler(console)
+logger = logging.getLogger(__name__)
 
 
 class GoutiereChantier:
@@ -15,7 +22,7 @@ class GoutiereChantier:
         """
         self.id = id
         self.shapefileDir = shapefileDir
-        self.goutieres:List[Goutiere] = goutieres
+        self.goutieres:List[Goutiere_image] = goutieres
         self.seuil = seuil
         self.methode = methode
         self.maitresse_petite = maitresse_petite
@@ -68,8 +75,7 @@ class GoutiereChantier:
         for goutiere in self.goutieres:
             # On récupère les points les plus proches et les distances correspondantes entre la droite (sommet de prise de vue, extrémité 1 d'un segment sur pva) et la droite (goutiere)
             # et entre la droite (sommet de prise de vue, extrémité 2 d'un segment sur pva) et la droite (goutiere)
-            print("")
-            print("Image : ", goutiere.shot.image)
+            logger.info(f"Image : {goutiere.shot.image}")
             p1, p2, d1, d2 = goutiere.points_plus_proche(self.X0, self.u)
 
             # On ajoute les distances à l'accumulateur
@@ -134,7 +140,7 @@ class GoutiereChantier:
             self.p1 = self.get_point_from_x(self.X0, self.u, points1[indice_max][0,0])
             self.p2 = self.get_point_from_x(self.X0, self.u, points2[indice_max][0,0])
         self.d_mean = somme_distance / (2*len(self.goutieres))
-        print("Distance moyenne : ", self.d_mean)
+        logger.info(f"Distance moyenne : {self.d_mean}")
 
 
     def distance(self, p1, p2):
@@ -151,6 +157,8 @@ class GoutiereChantier:
         d_max = self.seuil + 1
 
         gouttiere_supprimee = True
+        logger.info(f"Chantier : {self.goutieres[0].id}")
+        logger.info(f"Nombre de goutières : {len(self.goutieres)}")
         while gouttiere_supprimee and len(self.goutieres) > 1:
             gouttiere_supprimee = False
 
@@ -176,17 +184,22 @@ class GoutiereChantier:
             var_V = sigma_0 * (np.eye(n) - A @ np.linalg.inv(A.T @ A) @ A.T)
             V_norm = np.abs(V.squeeze()/np.sqrt(np.diag(var_V)))
 
+            # On exclut la dernière équation (gouttière horizontale) lors de la recherche du plus haut résidu
+            V_norm = V_norm[:-1]
+
             V_norm_max = np.max(V_norm)
             V_norm_argmax = np.argmax(V_norm)
+            logger.info(f"résidu moyen : {V.T @ V / len(self.goutieres)}")
+            logger.info(f"V_norm_max : {V_norm_max}")
             if V_norm_max > 2:
                 goutieres_fausse = self.goutieres[V_norm_argmax//3]
+                logger.info(f"On supprime : {goutieres_fausse.id_unique}")
                 self.goutieres.remove(goutieres_fausse)
                 gouttiere_supprimee = True
 
                 
-        print("Calcul fini")
-        print("X0 : ", X0)
-        print("u : ", u)
+        logger.info(f"X0 : {X0}")
+        logger.info(f"u : {u}")
         self.X0 = X0
         self.u = u
 
@@ -222,9 +235,9 @@ class GoutiereChantier:
 
         n = len(self.goutieres)
 
-        A = np.zeros((3*n, 4))
-        B = np.zeros((3*n, 1))
-        P = np.zeros((3*n, 3*n))
+        A = np.zeros((3*n+1, 4))
+        B = np.zeros((3*n+1, 1))
+        P = np.zeros((3*n+1, 3*n+1))
 
         X0 = self.x_mean()
         
@@ -244,6 +257,9 @@ class GoutiereChantier:
             P[3*i,3*i] = poids
             P[3*i+1,3*i+1] = poids
             P[3*i+2,3*i+2] = poids
+        A[3*n, 3] = 1
+        B[3*n, :] = 0
+        P[3*n,3*n] = 10
         return A, B, P, X0
 
 

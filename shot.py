@@ -395,7 +395,7 @@ class MNT:
             l = (y - ymax)/self.gt[5]
             # Les points images sont en col lig mais les np.array sont en lig col
             z = ndimage.map_coordinates(array, np.vstack([l, c]), order=1, mode="constant")
-            return z
+            return z+10
         except:
             return None
         

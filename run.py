@@ -16,7 +16,8 @@ def run(chantier, emprise):
     dissolve(os.path.join(gouttieres, "predictions_FFL"), os.path.join(gouttieres, "regroupe"))
 
     print("Nettoyage des géométries")
-    nettoyage(os.path.join(gouttieres, "regroupe"), os.path.join(gouttieres, "nettoye"))
+    #nettoyage(os.path.join(gouttieres, "regroupe"), os.path.join(gouttieres, "nettoye"))
+    nettoyage(os.path.join(gouttieres, "predictions_FFL"), os.path.join(gouttieres, "nettoye"))
     
     print("Association d'un même identifiant aux bâtiments")
     association_bati(

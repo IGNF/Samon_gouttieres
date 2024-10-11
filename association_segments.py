@@ -3,6 +3,8 @@ import geopandas as gpd
 import numpy as np
 from tqdm import tqdm
 from bati import Bati
+from goutiere import Goutiere_image
+from typing import List, Dict
 import statistics
 import argparse
 from tools import get_mnt, get_raf, get_ta_xml, get_shots
@@ -271,7 +273,7 @@ def demarque_goutieres(bati):
 
 
 
-def composante_connexe_bati(bati):
+def composante_connexe_bati(bati:List[Bati]):
     composantes_connexes = []
     for b in bati:
         for goutiere in b.goutieres:
@@ -301,7 +303,7 @@ def compute_correlation(rasterized_b1, rasterized_b2, centre_b1, centre_b2):
 
 
                 
-def association(batis, minimum_batiment=2):
+def association(batis:List[List[Bati]], minimum_batiment=2):
     #On parcourt tous les groupes de bâtiments. Un groupe : ensemble de bâtiments ayant le même identifiant 
     id_segment = 0
     for bati in tqdm(batis):
@@ -311,7 +313,8 @@ def association(batis, minimum_batiment=2):
             for i, b1 in enumerate(bati):
                 for j in range(i+1, len(bati)):
                     b2 = bati[j]
-                    if b1.pva() != b2.pva():
+                    # Il faut que les deux bâtiments ne soient pas issus de la même pva et qu'ils se recouvrent suffisamment en géométrie terrain
+                    if b1.pva() != b2.pva() and b1.compute_IoU(b2)>0.5:
 
                         # On effectue un premier appariement avec une tolérance de 5 mètres sur la distance du barycentre à la goutière
                         # Les goutières de b1 sont associées à une seule goutière de b2, mais rien n'empêche une 
@@ -342,7 +345,7 @@ def association(batis, minimum_batiment=2):
                     goutiere.id_chantier = id_segment
                 id_segment += 1
 
-def reorganiser_goutieres_par_shapefile(batis):
+def reorganiser_goutieres_par_shapefile(batis:List[List[Bati]]):
     dictionnaire = {}
     for bati in batis:
         for b in bati:
@@ -363,6 +366,7 @@ def sauvegarde(dictionnaire, output):
         liste_id_unique = []
         liste_voisin_1 = []
         liste_voisin_2 = []
+        goutiere : Goutiere_image
         for goutiere in dictionnaire[shapefile]:
             if goutiere.id_chantier is not None:
                 geometries.append(goutiere.get_image_geometry(superpose_pva=True))
@@ -373,12 +377,12 @@ def sauvegarde(dictionnaire, output):
                 liste_voisin_2.append(goutiere.voisin_2.id_unique)
             
         
-        d = {"id": liste_id, "id_bati": liste_id_bati, "id_unique":liste_id_unique, "voisin_1":liste_voisin_1, "voisin_2":liste_voisin_2, "geometry": geometries}
+        d = {"id": liste_id, "id_bati": liste_id_bati, "id_unique":liste_id_unique, "theta":angles, "voisin_1":liste_voisin_1, "voisin_2":liste_voisin_2, "geometry": geometries}
         gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
         gdf.to_file(os.path.join(output, shapefile+".shp"))
 
 
-def sauvegarde_projection(dictionnaire, output, save_voisin=True):
+def sauvegarde_projection(dictionnaire:Dict[str, Goutiere_image], output, save_voisin=True):
     for shapefile in dictionnaire.keys():
         geometries = []
         liste_id = []
@@ -386,6 +390,7 @@ def sauvegarde_projection(dictionnaire, output, save_voisin=True):
         liste_id_unique = []
         liste_voisin_1 = []
         liste_voisin_2 = []
+        goutiere : Goutiere_image
         for goutiere in dictionnaire[shapefile]:
             if goutiere.id_chantier is not None:
                 geometries.append(goutiere.get_projection())
