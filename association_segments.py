@@ -377,7 +377,7 @@ def sauvegarde(dictionnaire, output):
                 liste_voisin_2.append(goutiere.voisin_2.id_unique)
             
         
-        d = {"id": liste_id, "id_bati": liste_id_bati, "id_unique":liste_id_unique, "theta":angles, "voisin_1":liste_voisin_1, "voisin_2":liste_voisin_2, "geometry": geometries}
+        d = {"id": liste_id, "id_bati": liste_id_bati, "id_unique":liste_id_unique, "voisin_1":liste_voisin_1, "voisin_2":liste_voisin_2, "geometry": geometries}
         gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
         gdf.to_file(os.path.join(output, shapefile+".shp"))
 

@@ -19,7 +19,8 @@ def get_id_bati_max(shapefileDir):
     liste_id_bati = []
     max_id_bati = 0
     max_id_chantier = 0
-    shapefiles = [i for i in os.listdir(shapefileDir) if i[-4:] == ".shp"]
+    #shapefiles = [i for i in os.listdir(shapefileDir) if i[-4:] == ".shp"]
+    shapefiles = ["goutiere.shp"]
     # On parcourt les shapefiles
     for shapefile in shapefiles:
         # On parcourt toutes les géométries présentes dans le shapefile 
@@ -41,6 +42,7 @@ def charger_goutieres(shapefileDir, max_id_bati, max_id_chantier, emprise=None):
     liste_bati = [[] for i in range(max_id_bati+1)]
     liste_goutieresCalculees = [[] for i in range(max_id_chantier+1)]
     shapefiles = [i for i in os.listdir(shapefileDir) if i[-4:] == ".shp"]
+    shapefiles = ["goutiere.shp"]
     # On parcourt les shapefiles
     for shapefile in shapefiles:
         # On parcourt toutes les géométries présentes dans le shapefile 
