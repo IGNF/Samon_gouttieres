@@ -75,8 +75,9 @@ class GoutiereChantier:
         for goutiere in self.goutieres:
             # On récupère les points les plus proches et les distances correspondantes entre la droite (sommet de prise de vue, extrémité 1 d'un segment sur pva) et la droite (goutiere)
             # et entre la droite (sommet de prise de vue, extrémité 2 d'un segment sur pva) et la droite (goutiere)
-            logger.info(f"Image : {goutiere.shot.image}")
+            
             p1, p2, d1, d2 = goutiere.points_plus_proche(self.X0, self.u)
+            logger.info(f"Goutière id unique {goutiere.id_unique} : d1 :  {d1}, d2 : {d2}")
 
             # On ajoute les distances à l'accumulateur
             somme_distance += d1
@@ -180,8 +181,8 @@ class GoutiereChantier:
             V = B - A @ x_chap
             n = A.shape[0]
             m = A.shape[1]
-            sigma_0 = V.T @ V / (n - m)
-            var_V = sigma_0 * (np.eye(n) - A @ np.linalg.inv(A.T @ A) @ A.T)
+            sigma_0 = V.T @ P @  V / (n - m)
+            var_V = sigma_0 * (np.linalg.inv(P) - A @ np.linalg.inv(A.T @ P @ A) @ A.T)
             V_norm = np.abs(V.squeeze()/np.sqrt(np.diag(var_V)))
 
             # On exclut la dernière équation (gouttière horizontale) lors de la recherche du plus haut résidu

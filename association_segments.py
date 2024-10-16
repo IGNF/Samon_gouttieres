@@ -57,8 +57,9 @@ def create_goutieres(shots, max_id, mnt, shapefileDir):
             print("Chargement de l'image {}".format(shot.image))
             for feature in tqdm(gdf.iterfeatures()):
                 id = int(feature["properties"]["id"])
+                estim_z = float(feature["properties"]["estim_z"])
 
-                bati = Bati(id, feature["geometry"], shot, mnt, compute_gouttiere=True, unique_id=id_unique)
+                bati = Bati(id, feature["geometry"], shot, mnt, compute_gouttiere=True, unique_id=id_unique, estim_z=estim_z)
                 id_unique = bati.goutieres[-1].id_unique
 
                 # Pour chaque goutière du bati, on indique par un identifiant ses voisins
@@ -70,7 +71,7 @@ def create_goutieres(shots, max_id, mnt, shapefileDir):
     return batis
 
 
-def premier_appariement(b1, b2):
+def premier_appariement(b1:Bati, b2:Bati):
     for goutiere in b1.goutieres:
         u1 = goutiere.u_directeur_world().reshape((1, 2))
         barycentre_1 = goutiere.barycentre_world().reshape((1, 2))
@@ -104,7 +105,7 @@ def premier_appariement(b1, b2):
             goutiere.append_homologue_1(goutiere_homologue)
 
 
-def deuxieme_appariement(b1, b2, dx, dy):
+def deuxieme_appariement(b1:Bati, b2:Bati, dx, dy):
     b2.numpy_array_translation = b2.create_numpy_array(dx=dx, dy=dy)
 
     for goutiere in b1.goutieres:

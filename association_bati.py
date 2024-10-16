@@ -76,12 +76,13 @@ def association(batis_par_shapefile, geoseries):
     # On parcourt les shapefile
     for shapefile in tqdm(batis_par_shapefile):
         # On parcourt les bâtiments d'un shapefile
+        bati : Bati
         for bati in shapefile["batis"]:
             # On parcourt les autres shapefile
             for s2 in batis_par_shapefile:
                 if s2["shapefile"] != shapefile["shapefile"] and s2["shapefile"] in geoseries.keys():
                     # On récupère la géosérie du deuxième shapefile
-                    geoserie = geoseries[s2["shapefile"]]
+                    geoserie:gpd.GeoSeries = geoseries[s2["shapefile"]]
 
                     # On récupère l'emprise au sol du bâtiment
                     bati_emprise = bati.emprise_sol()
@@ -97,29 +98,32 @@ def association(batis_par_shapefile, geoseries):
                             # On l'associe au bâtiment avec lequel il partage la plus grande surface
                             bati_homologue = s2["batis"][aire_commune.argmax()]
                             bati_homologue.add_homologue(bati)
-                            bati.add_homologue(bati_homologue)
-
-
-
+                            bati.add_homologue(bati_homologue)                                        
 
 def graphe_connexe(batis_par_shapefile):
     id_bati = 0
     for shapefile in batis_par_shapefile:
+        bati : Bati
         for bati in tqdm(shapefile["batis"]):
             if not bati.marque:
+                batis = [bati]
+                #estim_z_list = bati.estim_z
                 liste = [bati]
                 bati.id = id_bati
                 bati.marque = True
 
                 while len(liste) > 0:
                     b = liste.pop()
+                    #estim_z_list += b.estim_z
                     for homologue in b.homologue:
                         if not homologue.marque:
                             homologue.id = id_bati
                             homologue.marque = True
                             if homologue not in liste:
+                                batis.append(homologue)
                                 liste.append(homologue)
 
+                Bati.mean_z_estim_v2(batis)
                 id_bati += 1
                             
 
@@ -128,28 +132,56 @@ def sauvegarde_image(batis_par_shapefile, output):
     for shapefile in batis_par_shapefile:
         id = []
         polygones = []
+        estim_z = []
+        scores = []
+        distances = []
+        bati : Bati
         for bati in tqdm(shapefile["batis"]):
             polygones.append(bati.emprise_image())
-        
+            
             id.append(bati.id)
+            estim_z.append(bati.estim_z_finale)
+            scores.append(bati.score)
+            distances.append(bati.dist_finale)
 
         if len(id) == 0:
             print("pas de géométrie conservée pour l'image {}".format(shapefile["shapefile"]))
         else:
-            d = {"id": id, "geometry": polygones}
+            d = {"id": id, "geometry": polygones, "estim_z":estim_z, "score":scores, "distance":distances}
             gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
             gdf.to_file(os.path.join(output, shapefile["shapefile"]+".shp"))
 
 
 def sauvegarde_projection(batis_par_shapefile, output):
-    
-
     for shapefile in batis_par_shapefile:
         id = []
         polygones = []
+        estim_z = []
+        scores = []
+        distances = []
+        bati : Bati
         for bati in tqdm(shapefile["batis"]):
             polygones.append(bati.emprise_sol())
-        
+            
+            id.append(bati.id)
+            estim_z.append(bati.estim_z_finale)
+            scores.append(bati.score)
+            distances.append(bati.dist_finale)
+
+        if len(id) == 0:
+            print("pas de géométrie conservée pour l'image {}".format(shapefile["shapefile"]))
+        else:
+            d = {"id": id, "geometry": polygones, "estim_z":estim_z, "score":scores, "distance":distances}
+            gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
+            gdf.to_file(os.path.join(output, shapefile["shapefile"]+"_projection.shp"))
+
+def sauvegarde_projection_all(batis_par_shapefile, output):
+    for shapefile in batis_par_shapefile:
+        id = []
+        polygones = []
+        bati : Bati
+        for bati in tqdm(shapefile["batis"]):
+            polygones.append(bati.emprise_sol())
             id.append(bati.id)
 
         if len(id) == 0:
@@ -157,7 +189,7 @@ def sauvegarde_projection(batis_par_shapefile, output):
         else:
             d = {"id": id, "geometry": polygones}
             gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
-            gdf.to_file(os.path.join(output, shapefile["shapefile"]+"_projection.shp"))
+            gdf.to_file(os.path.join(output, shapefile["shapefile"]+"_projection_all.shp"))
 
 
 def association_bati(shapefileDir, mnt_path, ta_xml, raf_path, chemin_emprise, output):
@@ -198,6 +230,7 @@ def association_bati(shapefileDir, mnt_path, ta_xml, raf_path, chemin_emprise, o
     # On sauvegarde les bâtiments en projection image et en projection terrain
     sauvegarde_image(batis_par_shapefile, output)
     sauvegarde_projection(batis_par_shapefile, output)
+    #sauvegarde_projection_all(batis_par_shapefile, output)
 
 
 

@@ -168,7 +168,7 @@ class CalculGoutieres:
 
                 
 
-                if len(chantier.goutieres) >= 2 and chantier.d_mean < 1:
+                if len(chantier.goutieres) >= 2:
 
                     # On enregistre les résultats dans un fichier shapefile
                     nb_plans_init.append(nb_plans_initiaux)
