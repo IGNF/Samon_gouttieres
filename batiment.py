@@ -373,10 +373,13 @@ class Batiment:
                     if voisin is not None:
                         # On met à jour les voisins
                         if not voisin.supprime:
-                            if voisin not in goutiereCalculee.voisins:
-                                goutiereCalculee.voisins.append(voisin)
-                            if goutiereCalculee not in voisin.voisins:
-                                voisin.voisins.append(goutiereCalculee)
+                            # Dès maintenant, on considère que les deux segments sont voisins si le produit scalaire est inférieur à 0.8
+                            ps = goutiereCalculee.produit_scalaire(voisin)
+                            if ps < 0.8:
+                                if voisin not in goutiereCalculee.voisins:
+                                    goutiereCalculee.voisins.append(voisin)
+                                if goutiereCalculee not in voisin.voisins:
+                                    voisin.voisins.append(goutiereCalculee)
 
                             
     def get_voisin(self, id_voisin):
@@ -398,12 +401,12 @@ class Batiment:
                 segment.supprime = True
 
 
-    def supprimer_segment_zero_voisin(self):
+    def supprimer_segment_zero_un_voisin(self):
         """
         Marque comme supprimé tous les segments avec strictement moins de deux voisins
         """
         for segment in self.segments:
-            if len(segment.voisins) == 0:    
+            if len(segment.voisins) <= 1:    
                 segment.supprime = True
 
     def initialiser_voisins(self):
@@ -585,16 +588,20 @@ class Batiment:
         return liste_points
 
 
+
+    def replace_id_voisins(self, voisin:GoutiereCalculee, old_voisin:GoutiereCalculee, new_voisin:GoutiereCalculee):
+        if old_voisin in voisin.voisins:
+            voisin.voisins.remove(old_voisin)
+
+        if new_voisin not in voisin.voisins:
+            voisin.voisins.append(new_voisin)
+
+
     def ajuster_intersection(self):
         for segment in self.segments:
             for voisin in segment.voisins:
                 ps = segment.produit_scalaire(voisin)
-                if self.get_id()==277:
-                    print()
-                    print(ps, segment.id_segment, voisin.id_segment)
-                    print(np.linalg.norm(segment.u), np.linalg.norm(voisin.u))
-                    print("segment.u : ", segment.u)
-                    print("voisin.u : ", voisin.u)
+                
                 if ps < 0.8:
                     intersection_x, intersection_y = segment.intersection(voisin)
                     z1 = segment.calcul_z(intersection_x)
@@ -603,12 +610,12 @@ class Batiment:
                     if not np.isnan(z_mean):
                         intersection = Point(intersection_x, intersection_y, z_mean)
                         # On ajoute le point d'intersection à l'attribut intersections de segment et de voisin
-                        segment.ajouter_intersection(intersection)
-                        voisin.ajouter_intersection(intersection)
+                        segment.ajouter_intersection(intersection, voisin.id_segment)
+                        voisin.ajouter_intersection(intersection, segment.id_segment)
 
         for segment in self.segments:
             if len(segment.intersections)==1:
-                i = segment.intersections[0]
+                i = segment.intersections[0]["point"]
                 d1 = segment.distance_point(segment.p1, i)
                 d2 = segment.distance_point(segment.p2, i)
                 if d1 < d2:
@@ -618,8 +625,8 @@ class Batiment:
                 segment.calcule_a_b()
             
             elif len(segment.intersections)==2:
-                i1 = segment.intersections[0]
-                i2 = segment.intersections[1]
+                i1 = segment.intersections[0]["point"]
+                i2 = segment.intersections[1]["point"]
 
                 c1, c2 = segment.p_proches_points(i1, i2)
                 segment.p1 = c1[1]
@@ -627,22 +634,34 @@ class Batiment:
                 segment.calcule_a_b()
 
             elif len(segment.intersections)>2:
-                couples = [[i, j] for i in range(len(segment.intersections)) for j in range(i, len(segment.intersections)) if i!=j ]
-                i1 = segment.intersections[0]
-                i2 = segment.intersections[1]
+                
+
+                i1 = segment.intersections[0]["point"]
+                i2 = segment.intersections[1]["point"]
 
                 c1, c2 = segment.p_proches_points(i1, i2)
                 segment.p1 = c1[1]
                 segment.p2 = c2[1]
                 segment.calcule_a_b()
 
-                del(couples[0])
-
-                for couple in couples:
-                    p1 = segment.intersections[couple[0]]
-                    p2 = segment.intersections[couple[1]]
-                    nouvelle_gouttiere = GoutiereCalculee(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, segment.id_bati, 0)
+                intersections_sorted = segment.sort_by_intersection()
+                for i in range(1, len(intersections_sorted)):
+                    i1 = intersections_sorted[i-1]["intersection"]
+                    i2 = intersections_sorted[i]["intersection"]
+                    p1 = i1["point"]
+                    p2 = i2["point"]
+                    new_id_segment = GoutiereCalculee.id_segment+1
+                    nouvelle_gouttiere = GoutiereCalculee(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, segment.id_bati, new_id_segment)
+                    v0 = self.get_voisin(i1["identifiant"])
+                    v1 = self.get_voisin(i2["identifiant"])
+                    nouvelle_gouttiere.voisins = [v0, v1]
+                    self.replace_id_voisins(v0, segment, nouvelle_gouttiere)
+                    self.replace_id_voisins(v1, segment, nouvelle_gouttiere)
                     self.segments.append(nouvelle_gouttiere)
+                segment.supprime = True
 
 
 
+
+
+    
