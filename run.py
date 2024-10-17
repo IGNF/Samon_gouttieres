@@ -6,6 +6,7 @@ from association_bati import association_bati
 from association_segments import association_segments
 from intersection_plan import intersection_plan
 from fermer_batiment import fermer_batiment_main
+from ajuster_intersection import ajuster_intersections
 
 
 def run(chantier, emprise):
@@ -51,6 +52,13 @@ def run(chantier, emprise):
     fermer_batiment_main(
         os.path.join(gouttieres, "intersection_plan"),
         os.path.join(gouttieres, "batiments_fermes")
+    )
+
+    print("Ajustement des intersections sur les gouttières calculées")
+    ajuster_intersections(
+        os.path.join(gouttieres, "intersection_plan"),
+        os.path.join(gouttieres, "intersections_ajustees"), 
+        emprise
     )
 
 

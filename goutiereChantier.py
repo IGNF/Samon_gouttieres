@@ -71,6 +71,10 @@ class GoutiereChantier:
         points1 = []
         points2 = []
         somme_distance = 0
+
+        if len(self.goutieres)==0:
+            return None
+        
         # On parcourt toutes les pvas
         for goutiere in self.goutieres:
             # On récupère les points les plus proches et les distances correspondantes entre la droite (sommet de prise de vue, extrémité 1 d'un segment sur pva) et la droite (goutiere)
@@ -142,6 +146,10 @@ class GoutiereChantier:
             self.p2 = self.get_point_from_x(self.X0, self.u, points2[indice_max][0,0])
         self.d_mean = somme_distance / (2*len(self.goutieres))
         logger.info(f"Distance moyenne : {self.d_mean}")
+        u = self.p2 - self.p1
+        norm_u = np.linalg.norm(u)
+        if norm_u > 1000:
+            self.goutieres = []
 
 
     def distance(self, p1, p2):
@@ -191,12 +199,13 @@ class GoutiereChantier:
             V_norm_max = np.max(V_norm)
             V_norm_argmax = np.argmax(V_norm)
             logger.info(f"résidu moyen : {V.T @ V / len(self.goutieres)}")
-            logger.info(f"V_norm_max : {V_norm_max}")
             if V_norm_max > 2:
                 goutieres_fausse = self.goutieres[V_norm_argmax//3]
                 logger.info(f"On supprime : {goutieres_fausse.id_unique}")
                 self.goutieres.remove(goutieres_fausse)
                 gouttiere_supprimee = True
+            elif np.isnan(V_norm_max):
+                self.goutieres = []
 
                 
         logger.info(f"X0 : {X0}")
@@ -254,7 +263,8 @@ class GoutiereChantier:
             B[3*i, :] = -param[0, 3] - param[0, 0] * X0
             B[3*i+1, :] = -param[0, 3] - param[0, 0] * X0 - param[0, 0] * lambda1
             B[3*i+2, :] = -param[0, 3] - param[0, 0] * X0 - param[0, 0] * lambda2
-            poids = goutiere.get_longueur() / longueur_total
+            #poids = goutiere.get_longueur() / longueur_total
+            poids = 1
             P[3*i,3*i] = poids
             P[3*i+1,3*i+1] = poids
             P[3*i+2,3*i+2] = poids

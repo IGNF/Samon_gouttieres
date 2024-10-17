@@ -12,10 +12,8 @@ from sklearn.feature_extraction.image import extract_patches_2d
 from shot import MNT, RAF
 
 
-seuil_ps = 0.85
-seuil_distance = 5
-seuil_longueure_goutiere = 2
-seuil_distance_droite_1 = 5
+seuil_ps = 0.9
+seuil_distance_droite_1 = 1.5
 seuil_distance_droite_2 = 1
 
 
@@ -316,6 +314,7 @@ def association(batis:List[List[Bati]], minimum_batiment=2):
                     b2 = bati[j]
                     # Il faut que les deux bâtiments ne soient pas issus de la même pva et qu'ils se recouvrent suffisamment en géométrie terrain
                     if b1.pva() != b2.pva() and b1.compute_IoU(b2)>0.5:
+                    #if b1.pva() != b2.pva():
 
                         # On effectue un premier appariement avec une tolérance de 5 mètres sur la distance du barycentre à la goutière
                         # Les goutières de b1 sont associées à une seule goutière de b2, mais rien n'empêche une 
