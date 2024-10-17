@@ -1,6 +1,5 @@
 import argparse
 import os
-from dissolve import dissolve
 from nettoyage import nettoyage
 from association_bati import association_bati
 from association_segments import association_segments
@@ -13,11 +12,7 @@ def run(chantier, emprise):
 
     gouttieres = os.path.join(chantier, "gouttieres")
 
-    print("Regroupement des géométries jointives")
-    dissolve(os.path.join(gouttieres, "predictions_FFL"), os.path.join(gouttieres, "regroupe"))
-
     print("Nettoyage des géométries")
-    #nettoyage(os.path.join(gouttieres, "regroupe"), os.path.join(gouttieres, "nettoye"))
     nettoyage(os.path.join(gouttieres, "predictions_FFL"), os.path.join(gouttieres, "nettoye"))
     
     print("Association d'un même identifiant aux bâtiments")

@@ -7,9 +7,6 @@ from tools import get_mnt, get_raf, get_ta_xml, get_shots
 from shot import MNT, RAF
 
 
-
-
-
 def charger_emprise(chemin_emprise):
     gdf = None
     if chemin_emprise != "None" and chemin_emprise is not None:
@@ -175,22 +172,6 @@ def sauvegarde_projection(batis_par_shapefile, output):
             gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
             gdf.to_file(os.path.join(output, shapefile["shapefile"]+"_projection.shp"))
 
-def sauvegarde_projection_all(batis_par_shapefile, output):
-    for shapefile in batis_par_shapefile:
-        id = []
-        polygones = []
-        bati : Bati
-        for bati in tqdm(shapefile["batis"]):
-            polygones.append(bati.emprise_sol())
-            id.append(bati.id)
-
-        if len(id) == 0:
-            print("pas de géométrie conservée pour l'image {}".format(shapefile["shapefile"]))
-        else:
-            d = {"id": id, "geometry": polygones}
-            gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
-            gdf.to_file(os.path.join(output, shapefile["shapefile"]+"_projection_all.shp"))
-
 
 def association_bati(shapefileDir, mnt_path, ta_xml, raf_path, chemin_emprise, output):
 
@@ -230,7 +211,6 @@ def association_bati(shapefileDir, mnt_path, ta_xml, raf_path, chemin_emprise, o
     # On sauvegarde les bâtiments en projection image et en projection terrain
     sauvegarde_image(batis_par_shapefile, output)
     sauvegarde_projection(batis_par_shapefile, output)
-    #sauvegarde_projection_all(batis_par_shapefile, output)
 
 
 
