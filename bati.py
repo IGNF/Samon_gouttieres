@@ -1,6 +1,6 @@
 from __future__ import annotations
 from goutiere import Goutiere_image, Goutiere_proj
-from shapely import Polygon, MultiLineString, intersection, union
+from shapely import Polygon, MultiPolygon, MultiLineString, intersection, union
 from shapely.validation import make_valid
 import numpy as np
 from typing import List
@@ -54,7 +54,11 @@ class Bati:
                 ground_points.append([x[i], y[i], z[i]]) 
             self.ground_geometry = Polygon(ground_points)
             if not self.ground_geometry.is_valid:
-                self.ground_geometry = make_valid(self.ground_geometry)
+                valid_geometry = make_valid(self.ground_geometry)
+                if isinstance(valid_geometry, MultiPolygon):
+                    self.ground_geometry = list(valid_geometry.geoms)[0]
+                else:
+                    self.ground_geometry = valid_geometry
         except:
             print("Out dem : ", c, l)
             self.ground_geometry = None

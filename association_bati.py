@@ -67,35 +67,40 @@ def construire_geoseries(batis_par_shapefile):
             geoseries[shapefile["shapefile"]] = gpd.GeoSeries(geometries)
 
     return geoseries
-        
-        
+
+
 def association(batis_par_shapefile, geoseries):
     # On parcourt les shapefile
-    for shapefile in tqdm(batis_par_shapefile):
+    for shapefile in batis_par_shapefile:
+        print(shapefile["shapefile"])
         # On parcourt les bâtiments d'un shapefile
-        bati : Bati
-        for bati in shapefile["batis"]:
-            # On parcourt les autres shapefile
-            for s2 in batis_par_shapefile:
-                if s2["shapefile"] != shapefile["shapefile"] and s2["shapefile"] in geoseries.keys():
-                    # On récupère la géosérie du deuxième shapefile
-                    geoserie:gpd.GeoSeries = geoseries[s2["shapefile"]]
+        
+        # On parcourt les autres shapefile
+        for s2 in batis_par_shapefile:
+            if s2["shapefile"] != shapefile["shapefile"] and s2["shapefile"] in geoseries.keys():
+                # On récupère la géosérie du deuxième shapefile
+                geoserie_1:gpd.GeoSeries = geoseries[s2["shapefile"]]
+                geoserie_0:gpd.GeoSeries = geoseries[shapefile["shapefile"]]
 
-                    # On récupère l'emprise au sol du bâtiment
-                    bati_emprise = bati.emprise_sol()
+                intersections = geoserie_0.sindex.query(geoserie_1, predicate="intersects")
 
-                    if bati_emprise is not None:
-                   
-
-                        # On applique l'intersection entre le bâtiment et la géosérie
-                        if geoserie.intersects(bati_emprise).any():
-                            intersection = geoserie.intersection(bati_emprise)
-                            # On calcule la surface commune entre les bâtiments qui s'intersectent
-                            aire_commune = intersection.area
-                            # On l'associe au bâtiment avec lequel il partage la plus grande surface
-                            bati_homologue = s2["batis"][aire_commune.argmax()]
-                            bati_homologue.add_homologue(bati)
-                            bati.add_homologue(bati_homologue)                                        
+                for i in tqdm(range(geoserie_1.shape[0])):
+                    bati_1:Bati = s2["batis"][i]
+                    bati_1_emprise = bati_1.emprise_sol()
+                    area_max = 0
+                    id_max = None
+                    for j in range(intersections.shape[1]):# On pourrait gagner du temps en faisant un np.where pour n'itérer que sur les cases intéressantes ?
+                        if intersections[0,j]==i:
+                            
+                            bati_2_emprise:Bati = shapefile["batis"][intersections[1,j]]
+                            aire_commune = bati_1_emprise.intersection(bati_2_emprise.emprise_sol()).area
+                            if aire_commune > area_max:
+                                area_max = aire_commune
+                                id_max = bati_2_emprise
+                    if id_max is not None:
+                        bati_1.add_homologue(id_max)
+                        id_max.add_homologue(bati_1) 
+                             
 
 def graphe_connexe(batis_par_shapefile):
     id_bati = 0
@@ -104,14 +109,12 @@ def graphe_connexe(batis_par_shapefile):
         for bati in tqdm(shapefile["batis"]):
             if not bati.marque:
                 batis = [bati]
-                #estim_z_list = bati.estim_z
                 liste = [bati]
                 bati.id = id_bati
                 bati.marque = True
 
                 while len(liste) > 0:
                     b = liste.pop()
-                    #estim_z_list += b.estim_z
                     for homologue in b.homologue:
                         if not homologue.marque:
                             homologue.id = id_bati
