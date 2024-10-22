@@ -1,22 +1,19 @@
 import argparse
 import os
-from dissolve import dissolve
 from nettoyage import nettoyage
 from association_bati import association_bati
 from association_segments import association_segments
 from intersection_plan import intersection_plan
 from fermer_batiment import fermer_batiment_main
+from ajuster_intersection import ajuster_intersections
 
 
 def run(chantier, emprise):
 
     gouttieres = os.path.join(chantier, "gouttieres")
 
-    print("Regroupement des géométries jointives")
-    dissolve(os.path.join(gouttieres, "predictions_FFL"), os.path.join(gouttieres, "regroupe"))
-
     print("Nettoyage des géométries")
-    nettoyage(os.path.join(gouttieres, "regroupe"), os.path.join(gouttieres, "nettoye"))
+    nettoyage(os.path.join(gouttieres, "predictions_FFL"), os.path.join(gouttieres, "nettoye"))
     
     print("Association d'un même identifiant aux bâtiments")
     association_bati(
@@ -50,6 +47,13 @@ def run(chantier, emprise):
     fermer_batiment_main(
         os.path.join(gouttieres, "intersection_plan"),
         os.path.join(gouttieres, "batiments_fermes")
+    )
+
+    print("Ajustement des intersections sur les gouttières calculées")
+    ajuster_intersections(
+        os.path.join(gouttieres, "intersection_plan"),
+        os.path.join(gouttieres, "intersections_ajustees"), 
+        emprise
     )
 
 

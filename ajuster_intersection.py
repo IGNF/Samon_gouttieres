@@ -1,10 +1,11 @@
 import os
 import geopandas as gpd
-from shapely import LineString
+from shapely import LineString, polygonize
 import numpy as np
 from batiment import Batiment
 import argparse
 from fermer_batiment import get_id_bati_max, charger_goutieres
+from typing import List
 
 
 
@@ -24,7 +25,7 @@ def ajuster(batiment:Batiment):
     for i in range(25):
         
         # On supprime les segments avec un seul voisin
-        batiment.supprimer_segment_zero_voisin()
+        batiment.supprimer_segment_zero_un_voisin()
         # On initialise pour tous les segments les voisins
         batiment.initialiser_voisins()
         # Pour chaque segment du bâtiment, on associe les côtés voisins
@@ -32,34 +33,40 @@ def ajuster(batiment:Batiment):
     batiment.ajuster_intersection()
 
 
-def sauvegarde_shapefile(batiments, resultat):
-    id = []
+def sauvegarde_shapefile(batiments:List[Batiment], resultat):
+    id_bati = []
+    id_segment = []
     geometries = []
     for batiment in batiments:
         for segment in batiment.segments:
-            id.append(batiment.get_id())
-            geometries.append(LineString([segment.p1, segment.p2]))
+            if not segment.supprime:
+                id_bati.append(batiment.get_id())
+                id_segment.append(segment.id_segment)
+                geometries.append(LineString([segment.p1, segment.p2]))
         
-    d = {"id":id, "geometry":geometries}
+    d = {"id_bati":id_bati, "id_segment":id_segment, "geometry":geometries}
     gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
     gdf.to_file(os.path.join(resultat, "intersections_ajustees.shp"))
 
 
-def sauvegarder_points(batiments, resultat, resolution):
+def save_polygons(batiments:List[Batiment], resultat):
+    """
+    Transforme une liste de lignes en polygones et les sauvegarde
+    """
+    polygons = []
+    id_bati = []
     for batiment in batiments:
+        linestrings = []
         for segment in batiment.segments:
-            p1 = np.array([[segment.p1.x], [segment.p1.y], [segment.p1.z]])
-            p2 = np.array([[segment.p2.x], [segment.p2.y], [segment.p2.z]])
-            u = p2 - p1
-            norm_u = np.linalg.norm(u)
-            if norm_u > 0 and norm_u < 200:
-                u_norm = u / norm_u
-                nb_points = int(norm_u / resolution)
-
-                with open(os.path.join(resultat, "intersections_ajustees.txt"), "a") as f:
-                    for i in range(nb_points):
-                        p = p1 + i * resolution * u_norm
-                        f.write("{} {} {}\n".format(p[0, 0], p[1, 0], p[2, 0]))
+            if not segment.supprime:
+                linestrings.append(LineString([segment.p1, segment.p2]))
+        polygone = polygonize(linestrings)
+        for geom in polygone.geoms:
+            polygons.append(geom)
+            id_bati.append(batiment.get_id())
+    d = {"id_bati":id_bati, "geometry":polygons}
+    gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
+    gdf.to_file(os.path.join(resultat, "polygones.shp"))
 
 
 def ajuster_intersections(shapefileDir, resultat, chemin_emprise):
@@ -81,7 +88,7 @@ def ajuster_intersections(shapefileDir, resultat, chemin_emprise):
 
 
     sauvegarde_shapefile(batiments, resultat)
-    sauvegarder_points(batiments, resultat, resolution)
+    save_polygons(batiments, resultat)
 
 
 if __name__=="__main__":

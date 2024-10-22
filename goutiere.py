@@ -1,5 +1,6 @@
 import numpy as np
 from shapely import LineString, Point
+from shot import Shot
 
 
 class Goutiere:
@@ -105,25 +106,26 @@ class Goutiere:
 
 
 class Goutiere_image(Goutiere):
-    def __init__(self, shot, path, dem, id) -> None:
+    def __init__(self, shot, path, dem, id, estim_z=0) -> None:
         """
         world_line : coordonnées de la goutière projetée sur le mnt
         param_plan : paramètres (a, b, c, d) du plan ax+by+cz+d=0 passant par la goutière et le sommetbde prise de vue du cliché
         """
         super().__init__(path, id)
 
-        self.shot = shot # Dans image
+        self.shot:Shot = shot # Dans image
         self.dem = dem # dans image
         self.world_line:np.array = None # dans image
         self.param_plan:np.array = None # dans image
         self.image = shot.image
+        self.estim_z = estim_z
 
     def get_plan(self):
         """
         Calcule les coordonnées des extrémités de la goutières projetées sur le mnt
         """
         try:
-            x, y, z = self.shot.image_to_world(self.image_line[:,0], self.image_line[:,1], self.dem)
+            x, y, z = self.shot.image_to_world(self.image_line[:,0], self.image_line[:,1], self.dem, estim_z=self.estim_z)
             self.world_line = np.array([[x[0], y[0], z[0]], [x[1], y[1], z[1]]])
         except:
             

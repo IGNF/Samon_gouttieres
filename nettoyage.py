@@ -140,7 +140,6 @@ def nettoyage(input, output):
 
     shapefiles = sorted([i for i in os.listdir(input) if i[-4:]==".shp"])
     for shapefile in tqdm(shapefiles):
-        print(shapefile)
         # On crée les géométries
         liste_polygons, liste_segments, query = create_polygons(input, shapefile)
 

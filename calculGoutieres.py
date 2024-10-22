@@ -168,7 +168,7 @@ class CalculGoutieres:
 
                 
 
-                if len(chantier.goutieres) >= 2 and chantier.d_mean < 1:
+                if len(chantier.goutieres) >= 2:
 
                     # On enregistre les résultats dans un fichier shapefile
                     nb_plans_init.append(nb_plans_initiaux)
@@ -190,8 +190,8 @@ class CalculGoutieres:
                             dict_voisins["v_{}".format(i)].append(None)
                     
                     geometry.append(LineString([
-                        (chantier.p1[0,0], chantier.p1[1,0]), 
-                        (chantier.p2[0,0], chantier.p2[1,0])]))
+                        (chantier.p1[0,0], chantier.p1[1,0], chantier.p1[2,0]), 
+                        (chantier.p2[0,0], chantier.p2[1,0], chantier.p2[2,0])]))
                     
                     # On sauvegarde les résultats dans un fichier xyz
                     if self.save_points_cloud:

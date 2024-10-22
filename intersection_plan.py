@@ -15,7 +15,7 @@ def intersection_plan(shapefile, mnt, ta_xml, raf, resultats):
     if not os.path.exists(resultats):
         os.makedirs(resultats)
 
-    calculGoutieres = CalculGoutieres(ta_xml, shapefile, mnt, raf, resultats)
+    calculGoutieres = CalculGoutieres(ta_xml, shapefile, mnt, raf, resultats, save_points_cloud=False)
     calculGoutieres.run()
 
 

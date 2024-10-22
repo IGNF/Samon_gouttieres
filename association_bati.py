@@ -7,9 +7,6 @@ from tools import get_mnt, get_raf, get_ta_xml, get_shots
 from shot import MNT, RAF
 
 
-
-
-
 def charger_emprise(chemin_emprise):
     gdf = None
     if chemin_emprise != "None" and chemin_emprise is not None:
@@ -70,43 +67,48 @@ def construire_geoseries(batis_par_shapefile):
             geoseries[shapefile["shapefile"]] = gpd.GeoSeries(geometries)
 
     return geoseries
-        
-        
+
+
 def association(batis_par_shapefile, geoseries):
     # On parcourt les shapefile
-    for shapefile in tqdm(batis_par_shapefile):
+    for shapefile in batis_par_shapefile:
+        print(shapefile["shapefile"])
         # On parcourt les bâtiments d'un shapefile
-        for bati in shapefile["batis"]:
-            # On parcourt les autres shapefile
-            for s2 in batis_par_shapefile:
-                if s2["shapefile"] != shapefile["shapefile"] and s2["shapefile"] in geoseries.keys():
-                    # On récupère la géosérie du deuxième shapefile
-                    geoserie = geoseries[s2["shapefile"]]
+        
+        # On parcourt les autres shapefile
+        for s2 in batis_par_shapefile:
+            if s2["shapefile"] != shapefile["shapefile"] and s2["shapefile"] in geoseries.keys():
+                # On récupère la géosérie du deuxième shapefile
+                geoserie_1:gpd.GeoSeries = geoseries[s2["shapefile"]]
+                geoserie_0:gpd.GeoSeries = geoseries[shapefile["shapefile"]]
 
-                    # On récupère l'emprise au sol du bâtiment
-                    bati_emprise = bati.emprise_sol()
+                intersections = geoserie_0.sindex.query(geoserie_1, predicate="intersects")
 
-                    if bati_emprise is not None:
-                   
-
-                        # On applique l'intersection entre le bâtiment et la géosérie
-                        if geoserie.intersects(bati_emprise).any():
-                            intersection = geoserie.intersection(bati_emprise)
-                            # On calcule la surface commune entre les bâtiments qui s'intersectent
-                            aire_commune = intersection.area
-                            # On l'associe au bâtiment avec lequel il partage la plus grande surface
-                            bati_homologue = s2["batis"][aire_commune.argmax()]
-                            bati_homologue.add_homologue(bati)
-                            bati.add_homologue(bati_homologue)
-
-
-
+                for i in tqdm(range(geoserie_1.shape[0])):
+                    bati_1:Bati = s2["batis"][i]
+                    bati_1_emprise = bati_1.emprise_sol()
+                    area_max = 0
+                    id_max = None
+                    for j in range(intersections.shape[1]):# On pourrait gagner du temps en faisant un np.where pour n'itérer que sur les cases intéressantes ?
+                        if intersections[0,j]==i:
+                            
+                            bati_2_emprise:Bati = shapefile["batis"][intersections[1,j]]
+                            aire_commune = bati_1_emprise.intersection(bati_2_emprise.emprise_sol()).area
+                            if aire_commune > area_max:
+                                area_max = aire_commune
+                                id_max = bati_2_emprise
+                    if id_max is not None:
+                        bati_1.add_homologue(id_max)
+                        id_max.add_homologue(bati_1) 
+                             
 
 def graphe_connexe(batis_par_shapefile):
     id_bati = 0
     for shapefile in batis_par_shapefile:
+        bati : Bati
         for bati in tqdm(shapefile["batis"]):
             if not bati.marque:
+                batis = [bati]
                 liste = [bati]
                 bati.id = id_bati
                 bati.marque = True
@@ -118,8 +120,10 @@ def graphe_connexe(batis_par_shapefile):
                             homologue.id = id_bati
                             homologue.marque = True
                             if homologue not in liste:
+                                batis.append(homologue)
                                 liste.append(homologue)
 
+                Bati.mean_z_estim_v2(batis)
                 id_bati += 1
                             
 
@@ -128,34 +132,46 @@ def sauvegarde_image(batis_par_shapefile, output):
     for shapefile in batis_par_shapefile:
         id = []
         polygones = []
+        estim_z = []
+        scores = []
+        distances = []
+        bati : Bati
         for bati in tqdm(shapefile["batis"]):
             polygones.append(bati.emprise_image())
-        
+            
             id.append(bati.id)
+            estim_z.append(bati.estim_z_finale)
+            scores.append(bati.score)
+            distances.append(bati.dist_finale)
 
         if len(id) == 0:
             print("pas de géométrie conservée pour l'image {}".format(shapefile["shapefile"]))
         else:
-            d = {"id": id, "geometry": polygones}
+            d = {"id": id, "geometry": polygones, "estim_z":estim_z, "score":scores, "distance":distances}
             gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
             gdf.to_file(os.path.join(output, shapefile["shapefile"]+".shp"))
 
 
 def sauvegarde_projection(batis_par_shapefile, output):
-    
-
     for shapefile in batis_par_shapefile:
         id = []
         polygones = []
+        estim_z = []
+        scores = []
+        distances = []
+        bati : Bati
         for bati in tqdm(shapefile["batis"]):
             polygones.append(bati.emprise_sol())
-        
+            
             id.append(bati.id)
+            estim_z.append(bati.estim_z_finale)
+            scores.append(bati.score)
+            distances.append(bati.dist_finale)
 
         if len(id) == 0:
             print("pas de géométrie conservée pour l'image {}".format(shapefile["shapefile"]))
         else:
-            d = {"id": id, "geometry": polygones}
+            d = {"id": id, "geometry": polygones, "estim_z":estim_z, "score":scores, "distance":distances}
             gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
             gdf.to_file(os.path.join(output, shapefile["shapefile"]+"_projection.shp"))
 

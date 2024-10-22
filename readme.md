@@ -210,3 +210,24 @@ On calcule pour chaque bâtiment les paramètres d'Helmert pour déplacer les b�
 ## appliquer_recalage.py
 
 On déplace les bâtiments de la BD Uni
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Tests essayés
+
+* On peut ajouter une équation dans les moindres carrés pour que la droite soit à l'horizontale. Une pondération de 1000 sur cette équation donne une très grande importance à cette équation. Une pondération de 10 est un compromis acceptable.
+
+* On peut calculer une estimation de la hauteur des bâtiments dès l'appariement des bâtiments : pour cela, on récupère les barycentres des bâtiments semblables (surface très proche, nombre de sommets proches). On vérifie également qu'il y a une cohérence géométrique : en théorie, dans un monde parfait, les deux barycentres et les deux sommets de prise de vue appartiennent au même plan. Puis, avec le théorème de Thalès, on peut avoir une estimation de la hauteur du bâtiment.
+
+* Une fois que l'on a une estimation de la hauteur du bâtiment, on peut reprojeter chaque bâtiment sur le MNT réhaussé de la hauteur du bâtiment. En théorie, chaque projection d'un même bâtiment devrait se superposer parfaitement. En tout cas, cela permettrait de réduire la distance autorisée lors de l'appariement des segments.

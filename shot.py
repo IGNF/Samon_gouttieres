@@ -3,7 +3,7 @@ import pyproj
 from scipy.spatial.transform import Rotation as R
 from osgeo import gdal
 from scipy import ndimage
-from shapely import Polygon
+from shapely import Polygon, Point
 import time
 
 class Shot:
@@ -90,6 +90,10 @@ class Shot:
     #def carto_to_geog(self, x, y):
     #    return pyproj.Transformer.from_crs(self.crs, self.crs_geog).transform(x, y)
 
+
+    def get_sommet(self):
+        return Point(self.x_pos, self.y_pos, self.z_pos)
+
     def world_to_euclidean(self, x, y, z):
             """
             Transform a point from the world coordinate reference system into the Euclidean coordinate reference system
@@ -146,7 +150,7 @@ class Shot:
         return self.geoc_to_carto(point_geoc[0], point_geoc[1], point_geoc[2])
 
     
-    def image_to_world(self, c, l, dem, prec=0.1, iter_max=3):
+    def image_to_world(self, c, l, dem, prec=0.1, iter_max=3, estim_z=0):
         """
         Compute the world coordinates of (a) image point(s).
         A Dem must be used.
@@ -167,7 +171,7 @@ class Shot:
         
         type_input = type(c)
 
-        z_world = dem.get(self.x_pos, self.y_pos)
+        z_world = dem.get(self.x_pos, self.y_pos) + estim_z
         
         z_world = np.full_like(c, z_world)
         x_local, y_local, z_local = self.image_z_to_local(c, l, z_world)
@@ -177,7 +181,7 @@ class Shot:
         nbr_iter = 0
 
         while not precision_reached and nbr_iter < iter_max:
-            z_world = dem.get(x_world, y_world)
+            z_world = dem.get(x_world, y_world) + estim_z
             # On repasse en euclidien avec le bon Zworld , l'approximation plani ayant un impact minime
             x_local, y_local, z_local = self.world_to_euclidean(x_world, y_world, z_world)
 

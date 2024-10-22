@@ -1,20 +1,23 @@
 from shapely import Point, LineString
 import numpy as np
 from troncon import Troncon
-from typing import List
+from typing import List, Dict
 
 
 class GoutiereCalculee:
+
+    id_segment = 0
 
     def __init__(self, x1, y1, z1, x2, y2, z2, id_bati, id_segment, fictive=False) -> None:
         self.p1 = Point(x1, y1, z1)
         self.p2 = Point(x2, y2, z2)
         self.id_bati = id_bati
         self.id_segment = id_segment
+        GoutiereCalculee.id_segment = max(GoutiereCalculee.id_segment, id_segment)
         self.id_voisins = []
         self.voisins:List[GoutiereCalculee] = []
         self.fictive = fictive
-        self.intersections = []
+        self.intersections:List[Dict[Point, int]] = []
         self.troncons = []
 
         self.a = None
@@ -191,7 +194,7 @@ class GoutiereCalculee:
             self.troncons.append(troncon)
         
 
-    def ajouter_intersection(self, intersection):
+    def ajouter_intersection(self, intersection, identifiant):
         """
         Ajoute intersection à self.intersections si l'intersection n'y est pas déjà.
 
@@ -200,10 +203,10 @@ class GoutiereCalculee:
         ajout = True
         epsilon = 0.1
         for i in self.intersections:
-            if self.distance_point(i, intersection) < epsilon:
+            if self.distance_point(i["point"], intersection) < epsilon:
                 ajout = False
         if ajout:
-            self.intersections.append(intersection)
+            self.intersections.append({"point":intersection, "identifiant":identifiant})
 
 
     def ajuster_intersection(self):
@@ -225,6 +228,22 @@ class GoutiereCalculee:
     def emprise_sol(self):
         return LineString([self.p1, self.p2])
         
+
+    def sort_by_intersection(self):
+        """
+        On trie les intersections pour qu'elles soient un ordre
+        """
+        intersection_ref = self.intersections[0]
+        intersections_dict = [{"intersection":intersection_ref, "lamb":0}]
+        for i in range(1, len(self.intersections)):
+            intersection_cur = self.intersections[i]
+            lamb = (intersection_cur["point"].x - intersection_ref["point"].x)/self.u[0,0]
+            intersections_dict.append({"intersection":intersection_cur, "lamb":lamb})
+
+        intersections_dict_sorted = sorted(intersections_dict, key=lambda d: d['lamb'])
+        return intersections_dict_sorted
+
+            
 
 
 
