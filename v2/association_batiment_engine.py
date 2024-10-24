@@ -17,7 +17,7 @@ class AssociationBatimentEngine:
 
 
 
-    def run(self):
+    def run(self)->List[GroupeBatiments]:
         print("Calcul des géométries terrain")
         for prediction in self.predictions:
             prediction.compute_ground_geometry()
@@ -33,6 +33,8 @@ class AssociationBatimentEngine:
 
         print("Calcul du z moyen du bâtiment")
         self.compute_z_mean()
+
+        return self.groupe_batiments
 
 
 
@@ -96,6 +98,9 @@ class AssociationBatimentEngine:
     
 
     def compute_z_mean(self):
+        """
+        On calcule le z moyen de chaque groupe de bâtiment, et on met à jour la projection au sol des bâtiments
+        """
         for groupe in tqdm(self.groupe_batiments):
             groupe.compute_z_mean()
             groupe.update_geometry_terrain()

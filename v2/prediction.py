@@ -100,11 +100,30 @@ class Prediction:
         z_mean = []
 
         for batiment in self.batiments:
-            if batiment.is_valid():
-                geometries.append(batiment.get_geometrie_terrain())
-                identifiant.append(batiment.get_identifiant())
-                identifiant_batiment.append(batiment.get_groupe_batiment_id())
-                z_mean.append(batiment.get_z_mean())
+            geometries.append(batiment.get_geometrie_terrain())
+            identifiant.append(batiment.get_identifiant())
+            identifiant_batiment.append(batiment.get_groupe_batiment_id())
+            z_mean.append(batiment.get_z_mean())
 
-        gdf = gpd.GeoDataFrame({"id":identifiant, "id_bati":identifiant_batiment, "z_mean":z_mean, "geometry":geometries})
+        gdf = gpd.GeoDataFrame({"id":identifiant, "id_bati":identifiant_batiment, "z_mean":z_mean, "geometry":geometries}, crs="EPSG:2154")
+        gdf.to_file(os.path.join(dir_path, self.get_image_name()+"_proj.gpkg"))
+
+    def export_segment_geometry_terrain(self, dir_path:str):
+        geometries = []
+        identifiant = []
+        identifiant_segment = []
+        identifiant_bati = []
+        voisin_1 = []
+        voisin_2 = []
+
+        for batiment in self.batiments:
+            for segment in batiment.get_segments():
+                geometries.append(segment.get_geometrie_terrain())
+                identifiant.append(segment.get_identifiant())
+                identifiant_segment.append(segment.get_identifiant_groupe())
+                identifiant_bati.append(segment.get_identifiant_batiment())
+                voisin_1.append(segment.get_voisin_1().get_identifiant())
+                voisin_2.append(segment.get_voisin_2().get_identifiant())
+
+        gdf = gpd.GeoDataFrame({"id":identifiant, "id_segment":identifiant_segment, "id_bati":identifiant_bati, "voisin_1":voisin_1, "voisin_2":voisin_2, "geometry":geometries}, crs="EPSG:2154")
         gdf.to_file(os.path.join(dir_path, self.get_image_name()+"_proj.gpkg"))

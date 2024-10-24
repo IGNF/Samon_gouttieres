@@ -1,10 +1,11 @@
 from __future__ import annotations
-from shapely import Polygon, LineString, Point, MultiPolygon
+from shapely import Polygon, LineString, Point, MultiPolygon, intersection, union
 import numpy as np
 from typing import List
 from v2.shot import Shot, MNT
 from numpy import linalg as LA
 from shapely.validation import make_valid
+from v2.segments import Segment
 
 class Batiment:
 
@@ -23,9 +24,18 @@ class Batiment:
 
         self.batiments_homologues:List[Batiment] = [] # Liste des bâtiments issus d'autres images mais représentant le même bâtiment
 
+        self.segments:List[Segment] = [] # Liste des segments constituants le bâtiment
+
 
         self._marque = False
         self.groupe_batiment = None # Groupe de bâtiment auquel appartient ce bâtiment
+
+        # tableau numpy contenant les informations relatives aux segments
+        self.array:np.array = None
+        self.u:np.array = None
+        self.barycentre:np.array = None
+        self.equation_droite:np.array = None
+        self.d_max:np.array = None
 
 
     def lisser_geometries(self):
@@ -265,3 +275,85 @@ class Batiment:
         if self.groupe_batiment is not None:
             return self.groupe_batiment.estim_z
         raise ValueError(f"Le bâtiment {self.identifiant} n'est associé à aucun groupe de bâtiment")
+    
+
+    def set_voisins(self):
+        segments = self.get_segments()
+        for i in range(1, len(segments)-1):
+            g1 = segments[i]
+            g0 = segments[i-1]
+            g2 = segments[i+1]
+            g1.voisin_1 = g0
+            g1.voisin_2 = g2
+            g0.voisin_2 = g1
+            g2.voisin_1 = g1
+        segments[0].voisin_1 = segments[-1]
+        segments[-1].voisin_2 = segments[0]
+
+
+    def create_segments(self)->None:
+        x, y = self.geometrie_image.exterior.xy
+        segments:List[LineString] = []
+        for i in range(len(x)-1):
+            linestring = LineString([[x[i], y[i]], [x[i+1], y[i+1]]])
+            segments.append(Segment(linestring, self.mnt, self.shot, self))
+        self.segments = segments
+        self.set_voisins()
+
+
+    def get_image(self)->str:
+        return self.shot.image
+    
+    def compute_iou(self, batiment_2:Batiment)->float:
+        footprint_1 = self.get_geometrie_terrain()
+        footprint_2 = batiment_2.get_geometrie_terrain()
+        intersection_area = intersection(footprint_1, footprint_2).area
+        union_area = union(footprint_1, footprint_2).area
+        return intersection_area / union_area
+    
+    def get_segments(self)->List[Segment]:
+        return self.segments
+    
+
+    def create_numpy_array(self, dx:float=0, dy:float=0):
+
+        nb_segments = len(self.segments)
+
+        
+        # Dans un premier tableau numpy, on met les coordonnées des extrémités des goutières en coordonnées du monde
+        array = np.zeros((nb_segments, 4))
+        for i, segment in enumerate(self.segments):
+            world_line = segment.world_line
+            array[i,:] = np.array([world_line[0,0]+dx, world_line[0,1]+dy, world_line[1,0]+dx, world_line[1,1]+dy])
+            
+        # On calcule le vecteur directeur normalisé des goutières (en 2d)
+        dx = (array[:,2]-array[:,0])
+        dy = (array[:,3]-array[:,1])
+        u = np.concatenate((dx.reshape((-1, 1)), dy.reshape((-1, 1))), axis=1)
+        norm = np.linalg.norm(u, axis=1)
+        u = u / np.tile(norm.reshape((-1, 1)), (1, 2))
+        
+        # On calcule le barycentre de la goutière (en 2d)
+        barycentre_x = (array[:,2]+array[:,0])/2
+        barycentre_y = (array[:,3]+array[:,1])/2
+        barycentre = np.concatenate((barycentre_x.reshape((-1, 1)), barycentre_y.reshape((-1, 1))), axis=1)
+        
+        # On calcule les paramètres de la droite de la goutière (en 2d)
+        a = dy
+        b = -dx
+        c = dx * array[:,1] - dy * array[:,0]
+        racine = np.sqrt(a**2 + b**2)
+        equation_droite = np.concatenate((a.reshape((-1, 1)), b.reshape((-1, 1)), c.reshape((-1, 1)), racine.reshape((-1, 1))), axis=1)
+        
+        # On calcule la moitié de la longueur de la goutière
+        d_max = 0.5 * np.sqrt(dx**2+dy**2)
+        
+        # On réunit tous les tableaux dans un dictionnaire
+        self.array = array
+        self.u = u
+        self.barycentre = barycentre
+        self.equation_droite = equation_droite
+        self.d_max = d_max
+
+    def get_segment_i(self, i:int)->Segment:
+        return self.segments[i]
