@@ -3,6 +3,7 @@ from v2.prediction import Prediction
 from tqdm import tqdm
 import geopandas as gpd
 from v2.groupe_batiments import GroupeBatiments
+import numpy as np
 
 class AssociationBatimentEngine:
 
@@ -57,14 +58,15 @@ class AssociationBatimentEngine:
                         bati_1_emprise = bati_1.get_geometrie_terrain()
                         area_max = 0
                         id_max = None
-                        for j in range(intersections.shape[1]):# On pourrait gagner du temps en faisant un np.where pour n'itérer que sur les cases intéressantes ?
-                            if intersections[0,j]==i:
-                                
-                                bati_2_emprise = prediction_2.get_batiment_i(intersections[1,j])
-                                aire_commune = bati_1_emprise.intersection(bati_2_emprise.get_geometrie_terrain()).area
-                                if aire_commune > area_max:
-                                    area_max = aire_commune
-                                    id_max = bati_2_emprise
+
+                        indices = np.where(intersections[0,:]==i)[0]
+                        for j in range(indices.shape[0]):
+                            indice = indices[j]                                
+                            bati_2_emprise = prediction_2.get_batiment_i(intersections[1,indice])
+                            aire_commune = bati_1_emprise.intersection(bati_2_emprise.get_geometrie_terrain()).area
+                            if aire_commune > area_max:
+                                area_max = aire_commune
+                                id_max = bati_2_emprise
                         if id_max is not None:
                             bati_1.add_homologue(id_max)
                             id_max.add_homologue(bati_1)
