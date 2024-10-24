@@ -3,8 +3,11 @@
 # Retrouver les contours des toits des bâtiments en 3D
 
 Ce répertoire permet de :
-* reconstruire en 3D les contours de toit (script run.py)
-* recaler les bâtiments de la BD Uni sur les contours de toit trouvés précédemment (script run_recalage.py)
+* reconstruire en 3D les contours de toit (script SamonGouttiere.py)
+* recaler les bâtiments de la BD Uni sur les contours de toit trouvés précédemment (script run_recalage.py) => non maintenu
+
+
+![Alt text](Mont_Dauphin.png "Mont Dauphin")
 
 
 ## Mise en place d'un chantier
@@ -23,7 +26,7 @@ Eventuellement, il peut s'y trouver :
 
 ## Chantiers disponibles
 
-Cinq chantiers sont disponibles dans store-echange/CelestinHuet/Samon_gouttieres/Chantiers
+Plusieurs chantiers sont disponibles dans store-echange/CelestinHuet/Samon_gouttieres/Chantiers
 
 ### 05_2022
 
@@ -31,7 +34,7 @@ Forteresse de Mont-Dauphin. Ce chantier ne fonctionne qu'avec la commande run.py
 
 Exemple de commande : 
 ```
-python run.py --chantier chantiers/05_2022/
+python SamonGouttiere.py --input chantiers/05_2022/
 ```
 
 
@@ -41,7 +44,7 @@ Martigné-Briand. Ce chantier ne fonctionne qu'avec la commande run.py car la BD
 
 Exemple de commande : 
 ```
-python run.py --chantier chantiers/49_2022/
+python SamonGouttiere.py --input chantiers/49_2022/
 ```
 
 
@@ -51,22 +54,16 @@ Craonne. Ce chantier ne fonctionne qu'avec la commande run.py car la BD Uni n'es
 
 Exemple de commande : 
 ```
-python run.py --chantier chantiers/02_2021/
+python SamonGouttiere.py --input chantiers/02_2021/
 ```
 
-### Marseille
 
-Quatre zones de Marseille. Il est possible de l'utiliser pour le recalage. Le répertoire BD_Uni_verite_terrain contient la BD Uni parfaitement recalée (saisie dans le cadre d'un autre projet il y a quelques années), mais sans la contrainte d'appliquer une rotation, une translation et un facteur d'échelle.
+### sv3d
 
-Les zones sont : 
-* zone 1 : espace périurbain.
-* zone 2 : zone industrielle
-* zone 3 et zone 4 : centre-ville de Marseille. Ces deux zones fonctionnent très mal avec cet algorithme.
+20 zones dans l'Aisne, les Côtes d'Armor, le Bas-Rhin et les Yvelines
 
-Exemple de commande : 
-```
-python run_recalage.py --chantier chantiers/Marseille_zone_1/ --bduni chantiers/Marseille_zone_1/BDUNI/ --emprise chantiers/Marseille_zone_1/zone_periurbaine_1.geojson 
-```
+
+
 
 
 
@@ -88,46 +85,26 @@ conda activate samon
 
 ## Les fichiers résultats
 
-Dans plusieurs répertoires, on trouve deux types de fichiers shapefile : avec ou sans le suffixe "_projection". Ceux sans le suffixe sont dans la géométrie image, ceux avec le suffixe sont projetés sur le MNT et permet de superposer les shapefiles issus d'images différentes. Les fichiers xyz sont des fichiers 3D, à visualiser avec CloudCompare par exemple.
+Dans plusieurs répertoires, on trouve deux types de fichiers shapefile : avec ou sans le suffixe "_proj". Ceux sans le suffixe sont dans la géométrie image, ceux avec le suffixe sont projetés sur le MNT et permet de superposer les shapefiles issus d'images différentes. 
 
 Dans chantiers/gouttieres :
-* regroupe : prédictions du FFL après avoir regroupé en une seule géométrie les géométries jointives 
 * nettoye : prédictions du FFL où chaque segment correspond à un mur (sans points intermédiaires dans la géométrie)
-* association_bati : un bâtiment possède le même identifiant dans les différents fichiers shapefile
+* association_batiment : un bâtiment possède le même identifiant dans les différents fichiers shapefile
 * association_segments : un bord de toit possède le même identifiant dans les différents fichiers shapefile
-* intersection_plan : position 3D des bords de toit. En fichier shapefile, ce sont leurs projections 2D. Le fichier xyz peut se superposer avec du lidar.
-* batiments_fermes : on ferme les bâtiments à partir des bords de toit trouvés à l'étape précédente. En fichier shapefile, ce sont leurs projections 2D. Le fichier xyz peut se superposer avec du lidar.
+* intersections : position 3D des bords de toit.
+* batiments_fermes : on ferme les bâtiments à partir des bords de toit trouvés à l'étape précédente. intersections.gpkg contient les bords de toit ajustés lorsqu'ils intersectent d'autres bords de toit. batiments_fermes.gpkg contient les batiments fermés (après regroupement des bords de toit)
 
-Dans le cas de run_recalage.py, on trouve en plus :
-* BD_Uni_regroupee : BD Uni après avoir regroupé en une seule géométrie les géométries jointives
-* intersections_ajustees : lorsque deux segments voisins s'intersectent, on modifie leurs extrémités de façon à ce qu'elles correspondent à l'intersection
-* association_bati_BD_Uni : chaque bâtiment possède le même identifiant entre ce qui vient de la BD Uni et ce qui vient du calcul des gouttières
-* association_segments_BD_Uni : chaque bord de toit possède le même identifiant entre ce qui vient de la BD Uni et ce qui vient du calcul des gouttières
-* recalage : résultat des paramètres à appliquer (rotation, translation, facteur d'échelle) sur la BD Uni
-* BD_Uni_recalee : BD Uni recalée
+
 
 
 ## Détail de certains fichiers
 
-### intersection_plan
+### gouttieres/intersections/intersections.gpkg
 
-Les trois premières colonnes du fichier xyz sont les coordonnées de chaque point. La quatrième colonne correspond au nombre de segments qui ont été utilisés pour calculer le bord de toit.
 
-Dans le fichier shapefile, on trouve :
-* dist_mean : la distance moyenne entre le bord de toit calculé et les plans qui ont été utilisé pour le calcul
-* nb_plans_i : le nombre de plans utilisés au début du calcul
-* nb_plans : le nombre de plans utilisés pour calculer le bord de toit (la différence nb_plans_i-nb_plans correspond au nombre de plans qui n'ont pas été conservés dans le calcul car considérés comme faux ou pas assez précis)
-* x1, y1, z1 : coordonnées d'une extrémité
-* x2, y2, z2 : coordonnées de la deuxième extrémité
-* v_0 à v_6 : les identifiants des segments voisins
-
-### recalage
-
-* TX, TY, a, b : les paramètres de la transformation à l'issue du calcul
-* nb_points : nombre de points utilisés pour calculer la transformation
-* mean : écart moyen entre les points issus des bords de toits et après application de la transformation sur la BD Uni
-* res_max : écart maximal entre les points issus des bords de toits et après application de la transformation sur la BD Uni
-
+Dans le fichier geopackage, on trouve :
+* d_mean : la distance moyenne entre le bord de toit calculé et les plans qui ont été utilisés pour le calcul
+* nb_segments : le nombre de plans utilisés pour calculer le bord de toit
 
 
 # Description de la chaîne de traitement 
@@ -139,7 +116,7 @@ cd /mnt/common/hdd/home/CHuet-Admin/FFL
 sbatch /mnt/stores/store-DAI/pocs/saisie_monoscopique/chantiers_tests/run.sh
 
 
-## nettoyage.py
+## nettoyage
 
 A l'issue du Frame Field Learning, il y a quelques petites imperfections dans la géométrie au regard de la suite de l'algorithme :
 * un côté de bâtiment peut être divisé en plusieurs segments
@@ -149,19 +126,20 @@ Avant de lancer ce script, il faut appliquer l'outil Vecteur/Outils de geotraite
 
 Ce script prend chaque polygone et fusionne les segments du polygone dans le cas où ils se suivent et que le produit scalaire est suypérieur à un seuil.
 
-Dans le cas où l'outils GQIS n'a pas été appliqué auparavant, ce script identifie les côtés communs à plusieurs polygones. Ces côtés sont alors nettoyé suivant la même règle que ci-dessus. Dans l'étape suivante, on applique le nettoyage sur toutes les formes en ajoutant la contrainte qu'un segment commun à plusieurs polygones ne peut être modifié lors de cette étape. Sans cela, le nettoyage des segments communs sera fait différemment selon les polygones et on se retrouvera avec un nombre doublé de segments qui ne se superposent pas et qui viendront perturber la suite. Toutefois, il y a encore un ou deux petits défauts dans cette fonctionnalité. Il est donc préférable d'appliquer auparavant l'outils QGIS
 
-## association_bati.py
+## association_bati
 
 Pour chaque pva, on dispose des polygones nettoyés. Il faut ensuite faire correspondre les polygones entre les pvas.
 
 Pour cela, on projette sur le MNT chaque polygone. Pour chaque polygone, on regarde la surface de l'intersection entre ce polygone et les polygones des autres pvas. On associe le polygone avec celui avec lequel il partage la plus grande surface. Cette opération se fait dans les deux sens et pour chaque couple de pvas. Cela crée un graphe où un noeud représente un bâtiment et une arête représente une association. On cherche les composantes connexes et on attribue le même identifiant à tous les bâtiments d'un même groupe connexe.
 
-Les bâtiments sont sauvegardés en format shapefile en coordonnées images et en coordonnées terrain.
+Pour chaque bâtiment d'un même groupe connexe, on essaye d'évaluer la hauteur du bâtiment. La projection au sol des bâtiments est alors mise à jour sur MNT+hauteur estimée. Dans un monde parfait, les bâtiments d'un même groupe se superposeraient parfaitement, ce qui facilite l'association de segments (plus facile d'associer les segments s'ils sont séparés d'1 mètre au lieu de 5 mètres)
 
-## association_segments.py
+Les bâtiments sont sauvegardés en format geopackage en coordonnées terrain dans association_batiment.
 
-Dans les shapefiles, tous les bâtiments possédant le même identifiant représentent le même bâtiment dans la réalité. Il faut maintenant associer les segments des bâtiments.
+## association_segments
+
+Dans les geopackages, tous les bâtiments possédant le même identifiant représentent le même bâtiment dans la réalité. Il faut maintenant associer les segments des bâtiments.
 
 Pour chaque bâtiment réel, on dispose d'un certain nombre de bâtiments de pvas. On prend deux bâtiments de pvas. On fait un premier appariement des segments avec trois conditions en projection terrain 2D : 
 * produit scalaire supérieur à un certain seuil
@@ -176,17 +154,36 @@ Passer par cette étape de calcul de translation permet notamment de supprimer l
 
 Puis, avec le même système de graphe connexe, on associe un même identifiant à tous les segments représentant un même bord de toit.
 
-Les segments sont sauvegardés en format shapefile en coordonnées images et en coordonnées terrain.
+Les segments sont sauvegardés en format geopackage en coordonnées terrain dans association_segments.
 
 
-## intersection_plan.py
+## intersection_plan
 
 On récupère tous les segments ayant le même identifiant. Pour chaque segment, on construit le plan passant par le sommet de prise de vue et le segment. On fait une intersection de plans par moindres carrés. Puis on détermine les extrémités de la droite. On fait cela sur tous les segments.
 
-Les résultats sont sauvegardés sous format shapefile et sous format xyz (nuage de points) pour pouvoir être superposés avec le Lidar HD.
+Les résultats sont sauvegardés sous format geopackage dans intersections
+
+
+## fermeture des bâtiments
+
+Pour chaque segment, on calcule l'intersection avec ses segments voisins et on modifie la géométrie en conséquence. Puis à partir de tous les segments d'un même groupe de bâtiments, on récupère un polygone en 3 dimensions.
+
+Les résultats sont sauvegardés sous format geopackage dans batiments_fermes.
+
+
+
+
+
+
+
+
+
+
 
 
 # Recalage de la BD Uni
+
+Cette partie n'est plus maintenue. Elle permettait de recaler des bâtiments de la BD Uni sur les positions des segments 3D retrouvés
 
 Appliquer d'abord le dissolve sur la BD Uni.
 
@@ -211,23 +208,33 @@ On calcule pour chaque bâtiment les paramètres d'Helmert pour déplacer les b�
 
 On déplace les bâtiments de la BD Uni
 
+### Marseille
+
+Quatre zones de Marseille. Il était possible de l'utiliser pour le recalage (non maintenu). Le répertoire BD_Uni_verite_terrain contient la BD Uni parfaitement recalée (saisie dans le cadre d'un autre projet il y a quelques années), mais sans la contrainte d'appliquer une rotation, une translation et un facteur d'échelle.
+
+Les zones sont : 
+* zone 1 : espace périurbain.
+* zone 2 : zone industrielle
+* zone 3 et zone 4 : centre-ville de Marseille. Ces deux zones fonctionnent très mal avec cet algorithme.
+
+Exemple de commande : 
+```
+python run_recalage.py --chantier chantiers/Marseille_zone_1/ --bduni chantiers/Marseille_zone_1/BDUNI/ --emprise chantiers/Marseille_zone_1/zone_periurbaine_1.geojson 
+```
 
 
+Dans le cas de run_recalage.py, on trouve en plus :
+* BD_Uni_regroupee : BD Uni après avoir regroupé en une seule géométrie les géométries jointives
+* intersections_ajustees : lorsque deux segments voisins s'intersectent, on modifie leurs extrémités de façon à ce qu'elles correspondent à l'intersection
+* association_bati_BD_Uni : chaque bâtiment possède le même identifiant entre ce qui vient de la BD Uni et ce qui vient du calcul des gouttières
+* association_segments_BD_Uni : chaque bord de toit possède le même identifiant entre ce qui vient de la BD Uni et ce qui vient du calcul des gouttières
+* recalage : résultat des paramètres à appliquer (rotation, translation, facteur d'échelle) sur la BD Uni
+* BD_Uni_recalee : BD Uni recalée
 
 
+### recalage
 
-
-
-
-
-
-
-
-
-# Tests essayés
-
-* On peut ajouter une équation dans les moindres carrés pour que la droite soit à l'horizontale. Une pondération de 1000 sur cette équation donne une très grande importance à cette équation. Une pondération de 10 est un compromis acceptable.
-
-* On peut calculer une estimation de la hauteur des bâtiments dès l'appariement des bâtiments : pour cela, on récupère les barycentres des bâtiments semblables (surface très proche, nombre de sommets proches). On vérifie également qu'il y a une cohérence géométrique : en théorie, dans un monde parfait, les deux barycentres et les deux sommets de prise de vue appartiennent au même plan. Puis, avec le théorème de Thalès, on peut avoir une estimation de la hauteur du bâtiment.
-
-* Une fois que l'on a une estimation de la hauteur du bâtiment, on peut reprojeter chaque bâtiment sur le MNT réhaussé de la hauteur du bâtiment. En théorie, chaque projection d'un même bâtiment devrait se superposer parfaitement. En tout cas, cela permettrait de réduire la distance autorisée lors de l'appariement des segments.
+* TX, TY, a, b : les paramètres de la transformation à l'issue du calcul
+* nb_points : nombre de points utilisés pour calculer la transformation
+* mean : écart moyen entre les points issus des bords de toits et après application de la transformation sur la BD Uni
+* res_max : écart maximal entre les points issus des bords de toits et après application de la transformation sur la BD Uni
