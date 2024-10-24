@@ -1,5 +1,5 @@
 from __future__ import annotations
-from shapely import Polygon, LineString, Point, MultiPolygon, intersection, union
+from shapely import Polygon, LineString, Point, MultiPolygon, intersection, union, buffer
 import numpy as np
 from typing import List
 from v2.shot import Shot, MNT
@@ -357,3 +357,23 @@ class Batiment:
 
     def get_segment_i(self, i:int)->Segment:
         return self.segments[i]
+    
+    def distance_sommet(self, point:Point):
+        sommet = self.shot.get_sommet()
+        return np.sqrt((point.x-sommet.x)**2 + (point.y-sommet.y)**2)
+    
+
+    def get_points_samon(self)->List[Point, float]:
+        geometry_buffer = buffer(self.geometrie_terrain, -2)
+        if isinstance(geometry_buffer, Polygon) and not geometry_buffer.is_empty:
+            dictionnaire = []
+            x, y = geometry_buffer.exterior.coords.xy
+            for i in range(len(x)):
+                point = Point(x[i], y[i])
+                distance = self.distance_sommet(point)
+                dictionnaire.append({"point":point, "distance":distance, "shot":self.shot})
+                
+            return dictionnaire
+
+        else:
+            return None

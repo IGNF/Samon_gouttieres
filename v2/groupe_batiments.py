@@ -1,8 +1,9 @@
 from v2.batiment import Batiment
-from typing import List
+from typing import List, Tuple
 from v2.groupe_segments import GroupeSegments
 import numpy as np
 from shapely import Point, Polygon, polygonize
+from v2.shot import Shot
 
 class GroupeBatiments:
 
@@ -25,6 +26,8 @@ class GroupeBatiments:
 
         self.geometrie_fermee:Polygon = None
 
+        self.nb_images_z_estim = -1 # Nombre d'images utilisées par Samon pour déterminer la hauteur du bâtiment
+
 
     def compute_z_mean(self):
         estim_z_sum = 0
@@ -39,12 +42,24 @@ class GroupeBatiments:
                         estim_z_sum += b1.compute_estim_z(b2)["delta_z"]
                         compte += 1
         if compte==0:
-            estim_z_final = 10
+            estim_z_final = None
         else:
             estim_z_final = estim_z_sum/compte
-        if estim_z_final<0 or estim_z_final >= 20:
-            estim_z_final = 10
+            if estim_z_final<0 or estim_z_final >= 20:
+                estim_z_final = None
         self.estim_z = estim_z_final
+
+    def get_nb_shots(self)->int:
+        """
+        Renvoie le nombre de pva sur lesquelles se trouvent le bâtiment
+        """
+        shots = []
+        for batiment in self.get_batiments():
+            shot = batiment.shot
+            if shot not in shots:
+                shots.append(shot)
+        return len(shots)
+
 
     def update_geometry_terrain(self):
         for batiment in self.batiments:
@@ -157,3 +172,16 @@ class GroupeBatiments:
 
     def get_geometrie_fermee(self)->Polygon:
         return self.geometrie_fermee
+    
+
+    def get_point_samon(self)->Tuple[Point, Shot]:
+        """
+        Récupère les points avec lesquels on pourrait obtenir une évaluation de la hauteur du bâtiment avec samon
+        """
+        dictionnaires = []
+        for batiment in self.get_batiments():
+            dict_batiment = batiment.get_points_samon() 
+            if dict_batiment is not None:
+                dictionnaires += batiment.get_points_samon()   
+        dictionnaires_tries = sorted(dictionnaires, key=lambda d: d['distance'])
+        return dictionnaires_tries

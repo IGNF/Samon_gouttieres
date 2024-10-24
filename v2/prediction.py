@@ -98,14 +98,16 @@ class Prediction:
         identifiant = []
         identifiant_batiment = []
         z_mean = []
+        nb_images = []
 
         for batiment in self.batiments:
             geometries.append(batiment.get_geometrie_terrain())
             identifiant.append(batiment.get_identifiant())
             identifiant_batiment.append(batiment.get_groupe_batiment_id())
             z_mean.append(batiment.get_z_mean())
+            nb_images.append(batiment.groupe_batiment.nb_images_z_estim)
 
-        gdf = gpd.GeoDataFrame({"id":identifiant, "id_bati":identifiant_batiment, "z_mean":z_mean, "geometry":geometries}, crs="EPSG:2154")
+        gdf = gpd.GeoDataFrame({"id":identifiant, "id_bati":identifiant_batiment, "z_mean":z_mean, "nb_images":nb_images, "geometry":geometries}, crs="EPSG:2154")
         gdf.to_file(os.path.join(dir_path, self.get_image_name()+"_proj.gpkg"))
 
     def export_segment_geometry_terrain(self, dir_path:str):

@@ -4,6 +4,11 @@ from tqdm import tqdm
 import geopandas as gpd
 from v2.groupe_batiments import GroupeBatiments
 import numpy as np
+from v2.samon.monoscopie import Monoscopie
+from shapely import Point
+from v2.shot import Shot
+from v2.samon.infosResultats import InfosResultats
+from v2.shot import MNT
 
 class AssociationBatimentEngine:
 
@@ -11,8 +16,9 @@ class AssociationBatimentEngine:
     Algorithme pour associer les bâtiments entre eux
     """
 
-    def __init__(self, predictions:List[Prediction]):
+    def __init__(self, predictions:List[Prediction], monoscopie:Monoscopie):
         self.predictions:List[Prediction] = predictions
+        self.monoscopie:Monoscopie = monoscopie
 
         self.groupe_batiments:List[GroupeBatiments] = None
 
@@ -98,11 +104,47 @@ class AssociationBatimentEngine:
         
         return groupe_batiments
     
+    def get_mnt(self)->MNT:
+        return self.predictions[0].mnt
+    
+
+    def compute_z_mean_samon(self, dictionnaires, nb_shots:int):
+        """
+        On calcule tous les points contenus dans dictionnaire avec Samon. on s'arrête dès qu'un point semble satisfaisant (suffisamment d'images utilisées pouir le calculer)
+        """
+        for dictionnaire in dictionnaires:
+            infos_resultats:InfosResultats = self.monoscopie.run(dictionnaire["point"], dictionnaire["shot"])
+            if infos_resultats.reussi:
+                if nb_shots >=3 and infos_resultats.nb_images<3:
+                    continue 
+                else:
+                    point_3d = infos_resultats.point3d
+                    z = self.get_mnt().get(point_3d[0], point_3d[1])[0]
+                    return point_3d[2] - z, infos_resultats.nb_images
+        return None, None
+
+
+    
 
     def compute_z_mean(self):
         """
         On calcule le z moyen de chaque groupe de bâtiment, et on met à jour la projection au sol des bâtiments
         """
+
         for groupe in tqdm(self.groupe_batiments):
             groupe.compute_z_mean()
+            # Si on n'est pas parvenu à avoir une estimation du z avec la méthode rapide
+            if groupe.estim_z is None:
+                # On récupère tous les points qui se trouvent sur le bâtiment
+                # Pour cela, sur chaque polygone issus de pvas différentes, on applique un buffer de -2 mètres et on récupère tous les sommets du polygones
+                dictionnaires = groupe.get_point_samon()
+                # On récupère une estimation de la hauteur du bâtiment
+                z_mean, nb_images = self.compute_z_mean_samon(dictionnaires, groupe.get_nb_shots())
+                if z_mean is not None:
+                    groupe.estim_z = z_mean
+                    groupe.nb_images_z_estim = nb_images
+                else:
+                    # Si cela n'a pas marché, alors on fixe arbitrairement la hauteur du bâtiment à 10 mètres
+                    groupe.estim_z = 10
+                    groupe.nb_images_z_estim = -1
             groupe.update_geometry_terrain()

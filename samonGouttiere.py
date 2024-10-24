@@ -10,6 +10,7 @@ from v2.groupe_batiments import GroupeBatiments
 from v2.groupe_segments import GroupeSegments
 from v2.calcul_intersection_engine import CalculIntersectionEngine
 from v2.fermer_batiment_engine import FermerBatimentEngine
+from v2.samon.monoscopie import Monoscopie
 import geopandas as gpd
 
 class SamonGouttiere:
@@ -29,6 +30,8 @@ class SamonGouttiere:
         self.groupe_batiments:List[GroupeBatiments] = []
         self.groupe_segments:List[GroupeSegments] = []
 
+        self.monoscopie:Monoscopie = []
+
     
     def get_mnt_path(self) -> str:
         """
@@ -36,6 +39,12 @@ class SamonGouttiere:
         """
         path = os.path.join(self.path_chantier, "mnt", "mnt.vrt")
         if not os.path.isfile(path):
+            return ValueError(f"{path} n'existe pas")
+        return path
+    
+    def get_pva_path(self)->str:
+        path = os.path.join(self.path_chantier, "pvas")
+        if not os.path.isdir(path):
             return ValueError(f"{path} n'existe pas")
         return path
     
@@ -137,6 +146,8 @@ class SamonGouttiere:
                     predictions.append(Prediction(shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt))
         self.predictions = predictions
 
+        self.monoscopie = Monoscopie(self.get_pva_path(), self.mnt, self.raf, self.shots)
+
 
     def lisser_geometries(self):
         """
@@ -154,7 +165,7 @@ class SamonGouttiere:
         """
         Associer les bâtiments entre eux
         """
-        association_batiments_engine = AssociationBatimentEngine(self.predictions)
+        association_batiments_engine = AssociationBatimentEngine(self.predictions, self.monoscopie)
         self.groupe_batiments = association_batiments_engine.run()
 
         os.makedirs(os.path.join(self.path_chantier, "gouttieres", "association_batiment"), exist_ok=True)
