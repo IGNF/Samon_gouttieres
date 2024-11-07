@@ -1,9 +1,16 @@
 from v2.batiment import Batiment
 from typing import List, Tuple
 from v2.groupe_segments import GroupeSegments
+from v2.segments import Segment
 import numpy as np
-from shapely import Point, Polygon, polygonize
+from shapely import Point, Polygon, make_valid, GeometryCollection, LineString
 from v2.shot import Shot
+import statistics
+from shapely.ops import polygonize_full
+
+
+id_debug = 618
+
 
 class GroupeBatiments:
 
@@ -27,6 +34,18 @@ class GroupeBatiments:
         self.geometrie_fermee:Polygon = None
 
         self.nb_images_z_estim = -1 # Nombre d'images utilisées par Samon pour déterminer la hauteur du bâtiment
+
+        self.methode_fermeture = None
+
+
+    def set_methode_fermeture(self, methode:str):
+        """
+        Méthode de fermeture des bâtiments : photogrammétrie ou projection d'un bâtiment
+        """
+        self.methode_fermeture = methode
+
+    def get_methode_fermeture(self)->str:
+        return self.methode_fermeture
 
 
     def compute_z_mean(self):
@@ -88,21 +107,26 @@ class GroupeBatiments:
         self.groupes_segments = groupes_segments
 
 
-    def ajuster_intersection(self):
+    def ajuster_intersection(self, seuil_ps=0.8):
+        """
+        nb_segments : nombre minimum de segments constituant un groupe de segments pour que le groupe soit considéré comme valide
+        Dans la deuxième tentative de fermeture, il faut qu'il soit égal à un car c'est un groupe de segments constitué d'un seul segment
+        """
         for groupe_segment in self.groupes_segments:
-            for voisin in groupe_segment.voisins:
-                if voisin.is_valid() and not voisin._supprime:
-                    ps = groupe_segment.compute_produit_scalaire(voisin)
-                    if ps < 0.8:
-                        intersection_x, intersection_y = groupe_segment.intersection(voisin)
-                        z1 = groupe_segment.calcul_z(intersection_x)
-                        z2 = voisin.calcul_z(intersection_x)
-                        z_mean = (z1+z2)/2
-                        if not np.isnan(z_mean):
-                            intersection = Point(intersection_x, intersection_y, z_mean)
-                            # On ajoute le point d'intersection à l'attribut intersections de segment et de voisin
-                            groupe_segment.ajouter_intersection(intersection, voisin)
-                            voisin.ajouter_intersection(intersection, groupe_segment)
+            if groupe_segment.is_valid():
+                for voisin in groupe_segment.voisins:
+                    if voisin.is_valid():
+                        ps = groupe_segment.compute_produit_scalaire(voisin)
+                        if ps < seuil_ps:
+                            intersection_x, intersection_y = groupe_segment.intersection(voisin)
+                            z1 = groupe_segment.calcul_z(intersection_x)
+                            z2 = voisin.calcul_z(intersection_x)
+                            z_mean = (z1+z2)/2
+                            if not np.isnan(z_mean):
+                                intersection = Point(intersection_x, intersection_y, z_mean)
+                                # On ajoute le point d'intersection à l'attribut intersections de segment et de voisin
+                                groupe_segment.ajouter_intersection(intersection, voisin)
+                                voisin.ajouter_intersection(intersection, groupe_segment)
 
         for groupe_segment in self.groupes_segments:
             if len(groupe_segment.intersections)==1:
@@ -164,11 +188,27 @@ class GroupeBatiments:
 
     
     def fermer_geometrie(self):
+        # On récupère toutes les lignes valides
         linestrings = []
         for segment in self.groupes_segments:
             if not segment._supprime:
                 linestrings.append(segment.get_geometrie())
-        self.geometrie_fermee = polygonize(linestrings)
+        
+        # On essaye de fermer la géométrie
+        self.geometrie_fermee, _, _, invalids = polygonize_full(linestrings)
+       
+        # Si cela ne marche pas, c'est sans doute parce que le Polygone créé serait invalide
+        # Donc on applique make_valid sur le polygone
+        if len(self.get_geometrie_fermee().geoms)==0:
+            if isinstance(invalids, GeometryCollection) and len(invalids.geoms)>0:# généralement une collection de LineString
+                # Si c'est une collection de géométries, on ne prend que la première car c'est possible que les deux géométries représentent la même chose 
+                # On pourrait faire un peu plus propre
+                lines = invalids.geoms[0] 
+            
+                if isinstance(lines, LineString):
+                    self.geometrie_fermee = GeometryCollection(make_valid(Polygon(lines)))
+            
+
 
     def get_geometrie_fermee(self)->Polygon:
         return self.geometrie_fermee
@@ -185,3 +225,66 @@ class GroupeBatiments:
                 dictionnaires += batiment.get_points_samon()   
         dictionnaires_tries = sorted(dictionnaires, key=lambda d: d['distance'])
         return dictionnaires_tries
+    
+
+    def get_shots(self):
+        shots = []
+        for batiment in self.get_batiments():
+            shot = batiment.shot
+            if shot not in shots:
+                shots.append(shot)
+        return shots
+    
+
+    def get_batiment_nearest_nadir(self)->Batiment:
+        batiment_min = None
+        distance_min = 1e15
+
+        x = []
+        y = []
+        # On récupère le barycentre des barycentre des batiments projetés
+        for batiment in self.batiments:
+            if batiment.geometrie_terrain is not None:
+                barycentre = batiment.geometrie_terrain.centroid
+                x.append(barycentre.x)
+                y.append(barycentre.y)
+        centre = Point(statistics.mean(x), statistics.mean(y))
+
+        for batiment in self.batiments:
+            # On calcule la distance entre le barycentre des barycentres et le sommet de prise de vue, en plani
+            distance = batiment.distance_sommet(centre)
+            # On conserve le bâtiment pour lequel la distance est minimale
+            # S'il y a plusieurs bâtiments appartenant à la même prise de vue, alors on conserve celui avec la plus grande surface
+            if distance < distance_min or (distance_min==distance and batiment.geometrie_terrain.area > batiment_min.geometrie_terrain.area):
+                batiment_min = batiment
+                distance_min = distance
+        return batiment_min
+    
+
+    def get_groupe_segments_one_segment(self, segment:Segment)->GroupeSegments:
+        for groupe_segments in self.groupes_segments:
+            if segment in groupe_segments.segments:
+                return groupe_segments
+        return None
+
+    def geometrie_fermee_valide(self)->bool:
+        """
+        La géométrie fermée est considérée comme valide si elle n'est pas vide et que sa surface est assez proche de celles des projections au sol des bâtiments
+        """
+        # Si la géométrie fermée est vide, on renvoie faux
+        if len(self.get_geometrie_fermee().geoms)==0:
+            return False
+        areas = []
+        for batiment in self.batiments:
+            if batiment.geometrie_terrain.area is not None:
+                areas.append(batiment.geometrie_terrain.area)
+        area_fermee = self.get_geometrie_fermee().area
+        area_max = max(areas)
+        ratio = area_fermee / area_max
+        if self.get_identifiant()==id_debug:
+            print(self.get_geometrie_fermee())
+            print(areas)
+            print("area_fermee, area_mediane, ratio : ", area_fermee, area_max, ratio)
+        if ratio < 0.2:
+            return False
+        return True

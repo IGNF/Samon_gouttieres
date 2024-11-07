@@ -47,6 +47,20 @@ class GroupeSegments:
         new_group_segment.p2 = p2
         new_group_segment.geometry = LineString([p1, p2])
         return new_group_segment
+    
+    @classmethod
+    def from_one_segment(cls, segment:Segment):
+        """
+        Crée un objet GroupeSegment à partir d'un seul segment pour lequel on a déjà la géométrie terrain
+        Sert pour la deuxième tentative de fermeture
+        """
+        new_group_segment = cls([segment])
+        linestring = segment.geometrie_terrain
+        new_group_segment.p1 = Point(linestring.coords[0])
+        new_group_segment.p2 = Point(linestring.coords[1])
+        new_group_segment.geometry = segment.geometrie_terrain
+        new_group_segment.calcule_a_b()
+        return new_group_segment
 
 
 
@@ -262,6 +276,25 @@ class GroupeSegments:
             self.a = u[1,0] / u[0,0]
             self.b = p1[1,0] - p1[0,0] / u[0,0] * u[1,0]
 
+    
+    def verifier_resultat_valide(self):
+        """
+        Mettre ici toutes les conditions pour lesquelles un résultat d'intersection soit accepté
+        """
+        # S'il n'y a pas assez de segments qui ont été utilisés pour le calcul
+        if len(self.segments)<2:
+            self._supprime = True
+        if self.longueur is None or self.longueur > 1000:
+            self._supprime = True
+        if self.d_mean is None or self.d_mean > 1:
+            self._supprime = True
+
+        # On vérifie que la hauteur du bord de toit reste cohérent par rapport au MNT : entre -10 mètres et +150 mètres
+        altitude_moyenne = self.altitude_moyenne()
+        if altitude_moyenne < -10 or altitude_moyenne > 150:
+            self._supprime = True
+        return True
+
         
 
 
@@ -283,11 +316,7 @@ class GroupeSegments:
     
 
     def is_valid(self)->bool:
-        if len(self.segments)<2:
-            return False
-        if self.longueur > 1000:
-            return False
-        return True
+        return not self._supprime
     
     def add_groupe_voisin(self, voisin:GroupeSegments)->None:
         if voisin not in self.voisins:
@@ -332,7 +361,7 @@ class GroupeSegments:
         voisins:List[GroupeSegments] = []
 
         for voisin in self.voisins:
-            if voisin.is_valid() and not voisin._supprime:
+            if voisin.is_valid():
                 ps = self.compute_produit_scalaire(voisin)
                 if ps < seuil_ps:
                     voisins.append(voisin)
@@ -375,6 +404,7 @@ class GroupeSegments:
 
         u = np.array([[ux0], [uy0], [uz0]])
         self.u = u / np.linalg.norm(u)
+        self.longueur = np.linalg.norm(u)
 
         u_plani = np.array([[ux0], [uy0]])
         self.u_plani = u_plani / np.linalg.norm(u_plani)
@@ -437,3 +467,13 @@ class GroupeSegments:
     
     def update_geometrie(self):
         self.geometry = LineString([self.p1, self.p2])
+
+
+    def altitude_moyenne(self)->float:
+        if self.p1 is None or self.p2 is None:
+            return None
+        x_mean = (self.p1.x + self.p2.x) / 2
+        y_mean = (self.p1.y + self.p2.y) / 2
+        z_mean = (self.p1.z + self.p2.z) / 2
+        z_sol = self.segments[0].mnt.get(x_mean, y_mean)
+        return z_mean - z_sol

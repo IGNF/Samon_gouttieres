@@ -5,8 +5,6 @@ import geopandas as gpd
 from v2.groupe_batiments import GroupeBatiments
 import numpy as np
 from v2.samon.monoscopie import Monoscopie
-from shapely import Point
-from v2.shot import Shot
 from v2.samon.infosResultats import InfosResultats
 from v2.shot import MNT
 
@@ -26,19 +24,24 @@ class AssociationBatimentEngine:
 
     def run(self)->List[GroupeBatiments]:
         print("Calcul des géométries terrain")
+        # On projette chaque prédiction du FFL sur le MNT
         for prediction in self.predictions:
             prediction.compute_ground_geometry()
         
         print("Calcul des géoséries")
+        # Pour chaque prédictions du FFL, on crée des tableaux numpy qui permettront d'accélérer le calcul pour associer des bâtiments
         for prediction in self.predictions:
             prediction.create_geodataframe()
 
         print("calcul des associations")
+        # Pour chaque bâtiment, on cherche sur les autres prédictions le bâtiment avec lequel il se superpose le plus
         self.association()
 
+        # On crée le graphe connexe qui regroupe tous les bâtiments qui ont été associés
         self.groupe_batiments = self.graphe_connexe()
 
         print("Calcul du z moyen du bâtiment")
+        # On calcule une estimation de la hauteur du bâtiment
         self.compute_z_mean()
 
         return self.groupe_batiments
@@ -56,9 +59,12 @@ class AssociationBatimentEngine:
                     geoserie_1:gpd.GeoDataFrame = prediction_1.get_geodataframe().geometry
                     geoserie_2:gpd.GeoDataFrame = prediction_2.get_geodataframe().geometry
 
+                    # On récupère les intersections entre les géométries terrain des bâtiments
                     intersections = geoserie_2.sindex.query(geoserie_1, predicate="intersects")
 
                     for i in tqdm(range(geoserie_1.shape[0])):
+                        
+                        # Pour chaque bâtiment, on récupère parmi les bâtiments qu'il intersecte celui avec lequel il partage la plus grande aire
                         bati_1 = prediction_1.get_batiment_i(i)
                         
                         bati_1_emprise = bati_1.get_geometrie_terrain()
@@ -110,7 +116,7 @@ class AssociationBatimentEngine:
 
     def compute_z_mean_samon(self, dictionnaires, nb_shots:int):
         """
-        On calcule tous les points contenus dans dictionnaire avec Samon. on s'arrête dès qu'un point semble satisfaisant (suffisamment d'images utilisées pouir le calculer)
+        On calcule tous les points contenus dans dictionnaire avec Samon. On s'arrête dès qu'un point semble satisfaisant (suffisamment d'images utilisées pour le calculer)
         """
         for dictionnaire in dictionnaires:
             infos_resultats:InfosResultats = self.monoscopie.run(dictionnaire["point"], dictionnaire["shot"])
@@ -132,6 +138,7 @@ class AssociationBatimentEngine:
         """
 
         for groupe in tqdm(self.groupe_batiments):
+            # Estimation rapide de la hauteur du bâtiment
             groupe.compute_z_mean()
             # Si on n'est pas parvenu à avoir une estimation du z avec la méthode rapide
             if groupe.estim_z is None:
@@ -140,6 +147,7 @@ class AssociationBatimentEngine:
                 dictionnaires = groupe.get_point_samon()
                 # On récupère une estimation de la hauteur du bâtiment
                 z_mean, nb_images = self.compute_z_mean_samon(dictionnaires, groupe.get_nb_shots())
+                #z_mean, nb_images = 10, -1 # Cette ligne est utile pour les tests si on ne veut pas utiliser Samon qui rallonge sensiblement les calculs
                 if z_mean is not None:
                     groupe.estim_z = z_mean
                     groupe.nb_images_z_estim = nb_images

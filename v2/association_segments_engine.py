@@ -10,7 +10,7 @@ from shapely import Point
 
 class AssociationSegmentsEngine:
 
-    seuil_ps:float = 0.9
+    seuil_ps:float = 0.98
     seuil_distance_droite_1:float = 1.5
     seuil_distance_droite_2:float = 1
 
@@ -21,6 +21,7 @@ class AssociationSegmentsEngine:
 
     def run(self):
         print("Création des segments pour chaque batiment")
+        # pour chaque bâtiment, on crée un objet Segment pour chaque côté du polygone
         for groupe_batiment in tqdm(self.groupes_batiments):
             groupe_batiment.create_segments()
 
@@ -31,9 +32,9 @@ class AssociationSegmentsEngine:
 
     def association(self):
         """
-        Effectue l'association entre les segments appartenant à un même groupe de bâtiment
+        Effectue l'association entre les segments appartenant à un même groupe de bâtiments
         """
-        # On parcourt les groupes de bâtiment
+        # On parcourt les groupes de bâtiments
         for groupe_batiment in tqdm(self.groupes_batiments):
             batiments = groupe_batiment.get_batiments()
             # Il faut au moins deux bâtiments dans le groupe de bâtiments

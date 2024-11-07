@@ -221,13 +221,15 @@ class SamonGouttiere:
     def export_batiments_fermes(self):
         geometries = []
         identifiant = []
+        methode = []
 
         for groupe_batiment in self.groupe_batiments:
             geometrie = groupe_batiment.get_geometrie_fermee()
             for geom in geometrie.geoms:
                 geometries.append(geom)
                 identifiant.append(groupe_batiment.get_identifiant())
-        d = {"id_bati":identifiant, "geometry":geometries}
+                methode.append(groupe_batiment.get_methode_fermeture())
+        d = {"id_bati":identifiant, "methode":methode, "geometry":geometries}
         
         os.makedirs(os.path.join(self.path_chantier, "gouttieres", "batiments_fermes"), exist_ok=True)
         gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
@@ -239,20 +241,22 @@ class SamonGouttiere:
         d_mean = []
         residus = []
         identifiant = []
+        identifiant_bati = []
 
         for groupe_batiments in self.groupe_batiments:
             for groupe_segments in groupe_batiments.groupes_segments:
             
-                if not groupe_segments._supprime:
+                if groupe_segments.is_valid():
                     
                     geometries.append(groupe_segments.get_geometrie())
                     nb_segments.append(groupe_segments.get_nb_segments())
                     d_mean.append(groupe_segments.get_d_mean())
                     residus.append(groupe_segments.get_residu_moyen())
                     identifiant.append(groupe_segments.get_identifiant())
+                    identifiant_bati.append(groupe_batiments.get_identifiant())
 
         os.makedirs(os.path.join(self.path_chantier, "gouttieres", "batiments_fermes"), exist_ok=True)
-        gdf = gpd.GeoDataFrame({"id":identifiant, "residus":residus, "d_mean":d_mean, "nb_segments":nb_segments, "geometry":geometries}, crs="EPSG:2154")
+        gdf = gpd.GeoDataFrame({"id":identifiant, "residus":residus, "d_mean":d_mean, "nb_segments":nb_segments, "id_bati":identifiant_bati, "geometry":geometries}, crs="EPSG:2154")
         gdf.to_file(os.path.join(self.path_chantier, "gouttieres", "batiments_fermes", "intersections.gpkg"))
         
 

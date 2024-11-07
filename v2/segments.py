@@ -30,6 +30,8 @@ class Segment:
 
         self.param_plan:np.array = None #Paramètres du plan passant par le sommet de prise de vue et le segment
 
+        self.estim_z_bati_ferme = None # Approximation de l'altitude du segment. A n'utiliser que dans la deuxième tentative pour fermer les bâtiments
+
         self.compute_ground_geometry()
 
     def get_estim_z(self)->float:
@@ -55,6 +57,46 @@ class Segment:
             ground_points.append([x[i], y[i], z[i]])
         self.geometrie_terrain = LineString(ground_points)
         self.world_line = np.array([[x[0], y[0], z[0]], [x[1], y[1], z[1]]])
+
+
+    def compute_ground_geometry_fermer_bati_2(self, altitude_moyenne_bati:float)->None:
+        """
+        Calcule la géométrie terrain du segment
+
+        On utilise self.estim_z_bati_ferme issu du calcul initial d'intersection de plans dans l'espace
+        Si cette valeur n'existe pas, alors on utilise celle des segments voisins
+        Si les voisins n'en ont pas non plus, alors on utilise la valeur moyenne du bâtiment
+        """
+        x, y = self.geometrie_image.coords.xy
+        
+        c = []
+        l = []
+        for i in range(len(x)):
+            c.append(x[i])
+            l.append(-y[i])
+
+        if self.estim_z_bati_ferme is not None:
+            estim_z = self.estim_z_bati_ferme
+        else:
+            v1_estim_z = self.voisin_1.estim_z_bati_ferme
+            v2_estim_z = self.voisin_2.estim_z_bati_ferme
+            if v1_estim_z is not None and v2_estim_z is not None:
+                estim_z = (v1_estim_z + v2_estim_z)/2
+            else:
+                if v1_estim_z is not None:
+                    estim_z = v1_estim_z
+                elif v2_estim_z is not None:
+                    estim_z = v2_estim_z
+                else:
+                    estim_z = altitude_moyenne_bati
+
+        x, y, z = self.shot.image_to_world(np.array(c), np.array(l), self.mnt, estim_z=estim_z)
+        ground_points = []
+        for i in range(len(x)):
+            ground_points.append([x[i], y[i], z[i]])
+        self.geometrie_terrain = LineString(ground_points)
+        self.world_line = np.array([[x[0], y[0], z[0]], [x[1], y[1], z[1]]])
+
 
 
     def u_directeur_world(self):

@@ -98,7 +98,7 @@ class CorrelationEngine:
 
         # On crée pour chaque coordonnées (x, y) une vignette sans rééchantillonage
         orthos = self.orthoLocale.create_vignette(x, y, self.size_window, 1)
-        if orthos is None:
+        if orthos is None or orthos.ndim!=3:
             return None
 
         # Normalisation des orthos
