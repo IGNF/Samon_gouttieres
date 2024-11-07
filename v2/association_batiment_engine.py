@@ -14,11 +14,13 @@ class AssociationBatimentEngine:
     Algorithme pour associer les bâtiments entre eux
     """
 
-    def __init__(self, predictions:List[Prediction], monoscopie:Monoscopie):
+    def __init__(self, predictions:List[Prediction], monoscopie:Monoscopie, emprise:gpd.GeoDataFrame):
         self.predictions:List[Prediction] = predictions
         self.monoscopie:Monoscopie = monoscopie
 
         self.groupe_batiments:List[GroupeBatiments] = None
+
+        self.emprise = emprise
 
 
 
@@ -27,6 +29,11 @@ class AssociationBatimentEngine:
         # On projette chaque prédiction du FFL sur le MNT
         for prediction in self.predictions:
             prediction.compute_ground_geometry()
+
+        if self.emprise is not None:
+            print("On ne conserve que les bâtiments à l'intérieur de l'emprise")
+            for prediction in self.predictions:
+                prediction.check_in_emprise(self.emprise)
         
         print("Calcul des géoséries")
         # Pour chaque prédictions du FFL, on crée des tableaux numpy qui permettront d'accélérer le calcul pour associer des bâtiments

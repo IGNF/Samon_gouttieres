@@ -65,6 +65,14 @@ class Prediction:
                 batiment.compute_ground_geometry()
 
 
+    def check_in_emprise(self, emprise):
+        liste_valide = []
+        for batiment in tqdm(self.batiments):
+            if batiment.geometrie_terrain.within(emprise).any():
+                liste_valide.append(batiment)
+        self.batiments = liste_valide
+
+
     def create_geodataframe(self):
         geometries = []
         identifiant = []

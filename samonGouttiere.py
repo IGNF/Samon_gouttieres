@@ -15,7 +15,7 @@ import geopandas as gpd
 
 class SamonGouttiere:
 
-    def __init__(self, path_chantier:str):
+    def __init__(self, path_chantier:str, path_emprise:str):
         
         # Chemin où se trouve le chantier
         if not os.path.isdir(path_chantier):
@@ -31,6 +31,15 @@ class SamonGouttiere:
         self.groupe_segments:List[GroupeSegments] = []
 
         self.monoscopie:Monoscopie = []
+
+        self.emprise:gpd.GeoDataFrame = self.charger_emprise(path_emprise)
+
+
+    def charger_emprise(self, chemin_emprise)->gpd.GeoDataFrame:
+        gdf = None
+        if chemin_emprise is not None and chemin_emprise is not None:
+            gdf = gpd.read_file(chemin_emprise).geometry
+        return gdf
 
     
     def get_mnt_path(self) -> str:
@@ -165,7 +174,7 @@ class SamonGouttiere:
         """
         Associer les bâtiments entre eux
         """
-        association_batiments_engine = AssociationBatimentEngine(self.predictions, self.monoscopie)
+        association_batiments_engine = AssociationBatimentEngine(self.predictions, self.monoscopie, self.emprise)
         self.groupe_batiments = association_batiments_engine.run()
 
         os.makedirs(os.path.join(self.path_chantier, "gouttieres", "association_batiment"), exist_ok=True)
@@ -268,7 +277,8 @@ class SamonGouttiere:
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="On calcule la position des goutières")
     parser.add_argument('--input', help='Répertoire où se trouvent les résultats de association_segments')
+    parser.add_argument('--emprise', help='Emprise au sol des zones où il faut reconstruire les bâtiments', default=None)
     args = parser.parse_args()
 
-    samonGouttiere =  SamonGouttiere(args.input)
+    samonGouttiere =  SamonGouttiere(args.input, args.emprise)
     samonGouttiere.run()
