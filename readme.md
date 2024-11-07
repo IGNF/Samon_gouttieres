@@ -133,7 +133,9 @@ Pour chaque pva, on dispose des polygones nettoyés. Il faut ensuite faire corre
 
 Pour cela, on projette sur le MNT chaque polygone. Pour chaque polygone, on regarde la surface de l'intersection entre ce polygone et les polygones des autres pvas. On associe le polygone avec celui avec lequel il partage la plus grande surface. Cette opération se fait dans les deux sens et pour chaque couple de pvas. Cela crée un graphe où un noeud représente un bâtiment et une arête représente une association. On cherche les composantes connexes et on attribue le même identifiant à tous les bâtiments d'un même groupe connexe.
 
-Pour chaque bâtiment d'un même groupe connexe, on essaye d'évaluer la hauteur du bâtiment. La projection au sol des bâtiments est alors mise à jour sur MNT+hauteur estimée. Dans un monde parfait, les bâtiments d'un même groupe se superposeraient parfaitement, ce qui facilite l'association de segments (plus facile d'associer les segments s'ils sont séparés d'1 mètre au lieu de 5 mètres)
+Pour chaque bâtiment d'un même groupe connexe, on essaye d'évaluer la hauteur du bâtiment. La projection au sol des bâtiments est alors mise à jour sur MNT+hauteur estimée. Dans un monde parfait, les bâtiments d'un même groupe se superposeraient parfaitement, ce qui facilite l'association de segments (plus facile d'associer les segments s'ils sont séparés d'1 mètre au lieu de 5 mètres).
+
+L'évaluation de la hauteur des bâtiments est calculée à partir des formes géométriques des différentes emprises des bâtiments sur les pvas. Si cette méthode rapide ne fonctionne pas, alors on utilise Samon en calculant la hauteur d'un point proche d'un bord de toit.
 
 Les bâtiments sont sauvegardés en format geopackage en coordonnées terrain dans association_batiment.
 
@@ -167,6 +169,8 @@ Les résultats sont sauvegardés sous format geopackage dans intersections
 ## fermeture des bâtiments
 
 Pour chaque segment, on calcule l'intersection avec ses segments voisins et on modifie la géométrie en conséquence. Puis à partir de tous les segments d'un même groupe de bâtiments, on récupère un polygone en 3 dimensions.
+
+La fermeture peut ne pas fonctionner, souvent parce qu'il manque un segment qui n'a pas été correctement calculé. Dans ce cas, on récupère la pva sur laquelle le bâtiment est le plus proche du nadir. Sur cette pva, on récupère l'emprise du bâtiment. Pour chaque segment de cette emprise, on le projette sur le MNT+une estimation de la hauteur du bords de toit. cette hauteur est obtenu à partir des calculs d'intersections de plans.
 
 Les résultats sont sauvegardés sous format geopackage dans batiments_fermes.
 
