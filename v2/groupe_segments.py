@@ -85,7 +85,28 @@ class GroupeSegments:
     def compute_equations_plans(self)->None:
         for segment in self.segments:
             segment.compute_equation_plan()
-    
+
+
+    def check_configurations(self):
+        """
+        Si toutes les images appartiennent au même axe de vol et que le bord de toit est dans l'axe de vol de l'avion, 
+        alors tous les plans passant par le sommet de prise de vue et le bord de toit seront pratiquement identiques.
+        Dans ce cas, on ne calcule pas l'image. En effet, le moindre décalage de prédiction du FFL aura d'énorme conséquences sur le z du résultat du calcul.
+
+        pour le détecter, on prend un plan.
+        Puis pour tous les autres bords de toit, on regarde la distance du sommet de prise de vue au premier plan.
+        Si toutes les distances sont inférieures à 200 mètres, alors on ne calcule pas et on utilisera la projection sur les autres segments
+        """
+        distance_max = 0
+        if len(self.segments)>1:
+            segment_0 = self.segments[0]
+            distance_max = 0
+            for i_s in range(1, len(self.segments)):
+                segment = self.segments[i_s]
+                sommet = segment.get_sommet_prise_de_vue_shapely()
+                distance_max = max(distance_max, segment_0.distance_point_plan(sommet))
+            if distance_max < 200:
+                self._supprime = True
 
     def x_mean(self)->np.array:
         """

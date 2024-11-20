@@ -158,6 +158,14 @@ class Segment:
         return np.array([[image_conical.x_pos, image_conical.y_pos, image_conical.z_pos.item()]])
     
 
+    def get_sommet_prise_de_vue_shapely(self)->Point:
+        """
+        Retourne les coordonnées du sommet de prise de vue
+        """
+        image_conical = self.shot
+        return Point(image_conical.x_pos, image_conical.y_pos, image_conical.z_pos.item())
+    
+
     def compute_equation_plan(self):
         """
         Calcule les paramètres du plan passant par le sommet de prise de vue et par la goutière
@@ -169,6 +177,15 @@ class Segment:
         normale = np.cross(vec1, vec2)
         d = -(normale[0,0] * self.world_line[0,0] + normale[0,1] * self.world_line[0,1] + normale[0,2] * self.world_line[0,2])
         self.param_plan = np.concatenate((normale, np.array([[d]])), axis=1)
+
+    
+    def distance_point_plan(self, point:Point)->float:
+        a = self.param_plan[0,0]
+        b = self.param_plan[0,1]
+        c = self.param_plan[0,2]
+        d = self.param_plan[0,3]
+        distance = abs(a*point.x + b*point.y + c*point.z + d) / np.sqrt(a**2 + b**2 + c**2)
+        return distance
 
 
     
