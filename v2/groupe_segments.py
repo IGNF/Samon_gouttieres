@@ -185,7 +185,11 @@ class GroupeSegments:
             #x_chap, res, _, _ = np.linalg.lstsq(A, B, rcond=None)
             N = A.T @ P @ A
             K = A.T @ P @ B
-            x_chap = np.linalg.inv(N) @ K
+            try:
+                x_chap = np.linalg.inv(N) @ K
+            except:
+                self.segments = []
+                continue
 
             #Distance au plan
             
@@ -312,6 +316,9 @@ class GroupeSegments:
 
         # On vérifie que la hauteur du bord de toit reste cohérent par rapport au MNT : entre -10 mètres et +150 mètres
         altitude_moyenne = self.altitude_moyenne()
+        if altitude_moyenne is None:
+            self._supprime = True
+            return True
         if altitude_moyenne < -10 or altitude_moyenne > 150:
             self._supprime = True
         return True

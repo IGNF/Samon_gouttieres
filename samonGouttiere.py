@@ -81,7 +81,7 @@ class SamonGouttiere:
         """
         Renvoie les prédictions ffl sous format shapefile
         """
-        predictions = [i for i in os.listdir(self.get_predictions_ffl_dir()) if i[-4:]==".shp"]
+        predictions = [i for i in os.listdir(self.get_predictions_ffl_dir()) if i[-4:]==".shp" or i[-5:]==".gpkg"]
         return predictions
     
     def get_ta_path(self):
@@ -112,8 +112,8 @@ class SamonGouttiere:
         pvas = [i.split(".")[0] for i in predictions_ffl]
         shots = []
         for vol in root.getiterator("vol"):
-            
-            focal = root.find(".//focal")
+
+            focal = vol.find(".//focal")
             focale_x = float(focal.find(".//x").text)
             focale_y = float(focal.find(".//y").text)
             focale_z = float(focal.find(".//z").text)
@@ -151,7 +151,7 @@ class SamonGouttiere:
         predictions = []
         for prediction_ffl in predictions_ffl:
             for shot in self.shots:
-                if shot.image+".shp" == prediction_ffl:
+                if shot.image+".shp" == prediction_ffl or shot.image+".gpkg" == prediction_ffl:
                     predictions.append(Prediction(shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt))
         self.predictions = predictions
 
@@ -231,6 +231,9 @@ class SamonGouttiere:
         geometries = []
         identifiant = []
         methode = []
+        methode_estimation_alti = []
+        estimation_z = []
+        delta_estim = []
 
         for groupe_batiment in self.groupe_batiments:
             geometrie = groupe_batiment.get_geometrie_fermee()
@@ -238,7 +241,17 @@ class SamonGouttiere:
                 geometries.append(geom)
                 identifiant.append(groupe_batiment.get_identifiant())
                 methode.append(groupe_batiment.get_methode_fermeture())
-        d = {"id_bati":identifiant, "methode":methode, "geometry":geometries}
+                methode_estimation_alti.append(groupe_batiment.get_methode_estimation_hauteur())
+                estimation_z.append(groupe_batiment.estim_z)
+
+                delta_z_list = []
+                for point in geom.exterior.coords:
+                    z = self.mnt.get(point[0], point[1])
+                    delta_z = point[2] - z
+                    delta_z_list.append(delta_z[0])
+                delta_z_mean = sum(delta_z_list)/len(delta_z_list)
+                delta_estim.append(groupe_batiment.estim_z - delta_z_mean)
+        d = {"id_bati":identifiant, "methode":methode, "estim_alti":methode_estimation_alti, "estim_z":estimation_z, "delta_estim":delta_estim, "geometry":geometries}
         
         os.makedirs(os.path.join(self.path_chantier, "gouttieres", "batiments_fermes"), exist_ok=True)
         gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")

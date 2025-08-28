@@ -47,7 +47,9 @@ class Batiment:
         x, y = self.geometrie_image.exterior.xy
         segments:List[LineString] = []
         for i in range(len(x)-1):
-            segments.append(LineString([[x[i], y[i]], [x[i+1], y[i+1]]]))
+            ls = LineString([[x[i], y[i]], [x[i+1], y[i+1]]])
+            if ls.length!=0:
+                segments.append(LineString([[x[i], y[i]], [x[i+1], y[i+1]]]))
 
         liste_segments_poly:List[LineString] = []
         nb_segments = len(segments)

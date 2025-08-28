@@ -36,6 +36,7 @@ class GroupeBatiments:
         self.nb_images_z_estim = -1 # Nombre d'images utilisées par Samon pour déterminer la hauteur du bâtiment
 
         self.methode_fermeture = None
+        self.methode_estimation_hauteur = None
 
 
     def set_methode_fermeture(self, methode:str):
@@ -47,12 +48,21 @@ class GroupeBatiments:
     def get_methode_fermeture(self)->str:
         return self.methode_fermeture
 
+    def set_methode_estimation_hauteur(self, methode:str):
+        """
+        Méthode de fermeture des bâtiments : photogrammétrie ou projection d'un bâtiment
+        """
+        self.methode_estimation_hauteur = methode
+
+    def get_methode_estimation_hauteur(self)->str:
+        return self.methode_estimation_hauteur
 
     def compute_z_mean(self):
         estim_z_sum = 0
         compte = 0
-        for i1 in range(len(self.batiments)):
-            for i2 in range(i1+1, len(self.batiments)):
+        i_max = min(100, len(self.batiments)) # Pour certains groupes, on peut avoir 2000 bâtiments, ce qui est très long à traiter... 
+        for i1 in range(i_max):
+            for i2 in range(i1+1, i_max):
                 b1 = self.batiments[i1]
                 b2 = self.batiments[i2]
                 if b1.shot.image != b2.shot.image:
@@ -67,6 +77,8 @@ class GroupeBatiments:
             if estim_z_final<0 or estim_z_final >= 20:
                 estim_z_final = None
         self.estim_z = estim_z_final
+        if self.estim_z is not None:
+            self.set_methode_estimation_hauteur("rapide")
 
     def get_nb_shots(self)->int:
         """
@@ -288,3 +300,13 @@ class GroupeBatiments:
         if ratio < 0.2:
             return False
         return True
+
+    def get_all_bati_same_PVA(self, bati:Batiment)->List[Batiment]:
+        """
+        Renvoie tous les bâtiments du groupe issus de la même pva
+        """
+        batiments = []
+        for b in self.batiments:
+            if b.shot==bati.shot:
+                batiments.append(b)
+        return batiments

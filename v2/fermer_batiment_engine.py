@@ -2,7 +2,9 @@ from typing import List
 from v2.groupe_batiments import GroupeBatiments, id_debug
 from tqdm import tqdm
 from v2.segments import Segment
-from v2.groupe_segments import GroupeSegments
+from shapely import Polygon, GeometryCollection, LineString, make_valid, MultiPolygon
+from shapely.ops import polygonize_full
+from shapely.geometry.base import BaseGeometry
 
 
 class FermerBatimentEngine:
@@ -23,68 +25,88 @@ class FermerBatimentEngine:
         if groupe_batiment.get_identifiant()==id_debug:
             print("batiment_principal : ", batiment_principal.shot.image, batiment_principal.identifiant)
 
-        # On parcourt tous les segments qui constituent ce batiment et on récupère l'altitude moyenne du segment
-        segment_sans_estimation_z:List[Segment] = []
-        altitudes_moyennes = []
-        if groupe_batiment.get_identifiant()==id_debug:
-            print("len(batiment_principal.get_segments()) : ", len(batiment_principal.get_segments()))
-        for segment in batiment_principal.get_segments():
-            groupe_segment = groupe_batiment.get_groupe_segments_one_segment(segment)
-            if groupe_segment is None or not groupe_segment.is_valid():
-                segment_sans_estimation_z.append(segment)
+        # On récupère tous les bâtiments issu de la même pva que le bâtiment principal
+        batiments_principaux = groupe_batiment.get_all_bati_same_PVA(batiment_principal)
+
+        polygones = []
+        # Pour chaque bâtiment, on va récupérer sa géométrie terrain et l'ajouter à polygones
+        for batiment_principal in batiments_principaux:
+
+            segments:List[Segment] = []
+
+            # On calcule l'altitude moyenne des segments. Cela servira à fixer une altitude aux segments dont le calcul d'intersection de plans a échoué
+            altitudes_moyennes = []
+            for segment in batiment_principal.get_segments():
+                groupe_segment = groupe_batiment.get_groupe_segments_one_segment(segment)
+                if groupe_segment is not None and groupe_segment.is_valid():
+                    altitude_moyenne = groupe_segment.altitude_moyenne()
+                    if altitude_moyenne is not None:
+                        altitudes_moyennes.append(altitude_moyenne)
+                        segment.estim_z_bati_ferme = altitude_moyenne
+            if len(altitudes_moyennes)==0:
                 continue
+            altitude_moyenne_bati = sum(altitudes_moyennes)/len(altitudes_moyennes)
 
-            altitude_moyenne = groupe_segment.altitude_moyenne()
-            if altitude_moyenne is None:
-                segment_sans_estimation_z.append(segment)
-                continue
-            altitudes_moyennes.append(altitude_moyenne)
-            segment.estim_z_bati_ferme = altitude_moyenne
+            # Pour chaque segment, on calcule sa projection au sol. 
+            # On utilise en priorité l'altitude moyenne du résultat de l'intersection de plans
+            # Puis l'altitude de ses voisins
+            # Et sinon l'altitude moyenne du bâtiment
+            for segment in batiment_principal.get_segments():
+                segment.compute_ground_geometry_fermer_bati_2(altitude_moyenne_bati)
+                segments.append(segment)
+            
+            # Pour chaque segment, on calcule la pseudo-intersection avec ses deux segments voisins
+            segments = [segments[-1]] + segments + [segments[0]]
+            adjusted_segments = []
+            for i in range(1, len(segments)-1):
+                p1 = segments[i].compute_pseudo_intersection(segments[i-1])
+                p2 = segments[i].compute_pseudo_intersection(segments[i+1])
+                adjusted_segments.append(LineString([p1, p2]))
 
-        if groupe_batiment.get_identifiant()==id_debug:
-            print("altitudes_moyennes : ", altitudes_moyennes)
-        if len(altitudes_moyennes)==0:
-            return False
+            # On transforme l'ensemble de segments en polygones
+            geometrie_fermee, _, _, invalids = polygonize_full(adjusted_segments)
+       
+            # Si cela ne marche pas, c'est sans doute parce que le Polygone créé serait invalide
+            # Donc on applique make_valid sur le polygone
+            if len(geometrie_fermee.geoms)==0:
+                if isinstance(invalids, GeometryCollection) and len(invalids.geoms)>0:# généralement une collection de LineString
+                    # Si c'est une collection de géométries, on ne prend que la première car c'est possible que les deux géométries représentent la même chose 
+                    # On pourrait faire un peu plus propre
+                    lines = invalids.geoms[0] 
+                
+                    if isinstance(lines, LineString):
+                        geometrie_fermee = GeometryCollection(make_valid(Polygon(lines)))
+
+            polygones.append(geometrie_fermee)
+
+        # On récupère une GeometryCollection de Polygon
+        groupe_batiment.geometrie_fermee = GeometryCollection(self.extract_polygons(GeometryCollection(polygones)))
+
+
+
+    def extract_polygons(self, geom:BaseGeometry)->List[Polygon]:
+        """
+        Récupère récursivement tous les polygones contenus dans une géométrie.
+        - geom : instance shapely.geometry (Polygon, MultiPolygon, GeometryCollection, etc.)
+        - retourne une liste de Polygons
+        """
+        polygons = []
         
-        # On calcule l'altitude moyenne des segments
-        altitude_moyenne_bati = 0
-        for alt in altitudes_moyennes:
-            altitude_moyenne_bati += alt
-        altitude_moyenne_bati = altitude_moyenne_bati / len(altitudes_moyennes)
-        if groupe_batiment.get_identifiant()==id_debug:
-            print("altitude_moyenne_bati : ", altitude_moyenne_bati)
-
-        # Pour chaque segment, on calcule sa projection sur l'altitude définie par (dans l'ordre de priorité) :
-        # - altitude du segment calculé par intersection de plans
-        # - altitude des voisins
-        # - altitude moyenne du bâtiment
-        for segment in batiment_principal.get_segments():
-            segment.compute_ground_geometry_fermer_bati_2(altitude_moyenne_bati)
-
-
-        # On met dans l'état supprimé tous les groupeSegments déjà existants
-        for groupe_segment in groupe_batiment.groupes_segments:
-            groupe_segment._supprime = True
+        if isinstance(geom, Polygon):
+            polygons.append(geom)
         
-        # On ajoute des groupes segments créés à partir uniquement des segments du bâtiment principal
-        for segment in batiment_principal.get_segments():
-            groupe_batiment.groupes_segments.append(GroupeSegments.from_one_segment(segment))
-
-
-        # Il ne reste plus qu'à mettre à jour les voisins et à ajuster les intersections
-        for groupe_segment in groupe_batiment.groupes_segments:
-            groupe_segment.update_voisins()
-
-        # On ajuste les intersections avec les nouveaux groupes de segments
-        groupe_batiment.ajuster_intersection(seuil_ps=1.0)
-
-        # On ferme la géométrie
-        groupe_batiment.fermer_geometrie()
-        if groupe_batiment.get_identifiant()==id_debug:
-            print("groupe_batiment.get_geometrie_fermee() : ", groupe_batiment.get_geometrie_fermee())
-        if len(groupe_batiment.get_geometrie_fermee().geoms)!=0:
-            groupe_batiment.set_methode_fermeture("projection")
-
+        elif isinstance(geom, MultiPolygon):
+            # Décomposer en polygones simples
+            for poly in geom.geoms:
+                polygons.append(poly)
+        
+        elif isinstance(geom, GeometryCollection):
+            # Appel récursif pour chaque géométrie de la collection
+            for subgeom in geom.geoms:
+                polygons.extend(self.extract_polygons(subgeom))
+        
+        # Ignorer les autres types (Point, LineString, etc.)
+        return polygons
 
 
     def run(self):
@@ -94,23 +116,21 @@ class FermerBatimentEngine:
             groupe_batiment.update_groupe_segments()  
 
         print("On ajuste pour chaque bâtiment les intersections des bords de toit")
+        fermeture_valide = [0,0]
         for groupe_batiment in tqdm(self.groupes_batiments):
             for groupe_segment in groupe_batiment.groupes_segments:
                 if groupe_segment.is_valid():
                     # Deux segments ne doivent pas être presque parallèle pour être considérés comme voisins par la suite
                     groupe_segment.update_voisins_ps(FermerBatimentEngine.seuil_ps)
-
-            groupe_batiment.ajuster_intersection()
-            groupe_batiment.fermer_geometrie()
-
-            if groupe_batiment.get_identifiant()==id_debug:
-                print("len(groupe_batiment.get_geometrie_fermee().geoms) : ", len(groupe_batiment.get_geometrie_fermee().geoms))
             
-            # Si le bâtiment n'a pas pu être fermé, alors on fait une deuxième tentative en projettant une prédiction du FFL sur le MNT + estimation de la hauteur
-            if not groupe_batiment.geometrie_fermee_valide():
-                self.fermer_deuxieme_tentative(groupe_batiment)
+            self.fermer_deuxieme_tentative(groupe_batiment)
+            if groupe_batiment.geometrie_fermee_valide():
+                fermeture_valide[0]+=1
             else:
-                groupe_batiment.set_methode_fermeture("photogrammetrie")
+                fermeture_valide[1]+=1
+
+        print(f"Fermeture projection : {fermeture_valide[0]}")
+        print(f"Fermeture ratée : {fermeture_valide[1]}")
 
             
             

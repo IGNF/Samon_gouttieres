@@ -226,4 +226,36 @@ class Segment:
         p1 = X1 + l1 * u1
         p2 = X2 + l2 * u2
 
-        return X1 + l1 * u1, np.sqrt(np.sum((p1-p2)**2)) 
+        return X1 + l1 * u1, np.sqrt(np.sum((p1-p2)**2))
+    
+
+    def compute_pseudo_intersection(self, segment:Segment)->Point:
+        """
+        Renvoie la pseudo-intersection en géométrie terrain entre self et segment
+        """
+        P1 = self.world_line[0]
+        P2 = segment.world_line[0]
+
+        d1 = self.world_line[1]-self.world_line[0]
+        d2 = segment.world_line[1]-segment.world_line[0]
+
+        w = P1 - P2
+        a = np.dot(d1, d1)
+        b = np.dot(d1, d2)
+        c = np.dot(d2, d2)
+        d = np.dot(d1, w)
+        e = np.dot(d2, w)
+
+        denom = a * c - b * b
+        if denom == 0:
+            # Droites parallèles, pas d'intersection unique
+            t1 = 0
+            t2 = d / b if b != 0 else 0
+        else:
+            t1 = (b * e - c * d) / denom
+            t2 = (a * e - b * d) / denom
+
+        Q1 = P1 + t1 * d1
+        Q2 = P2 + t2 * d2
+        Q = (Q1 + Q2) / 2
+        return Point(Q[0], Q[1], Q[2])

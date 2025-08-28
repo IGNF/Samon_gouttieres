@@ -35,7 +35,7 @@ class AssociationSegmentsEngine:
         Effectue l'association entre les segments appartenant à un même groupe de bâtiments
         """
         # On parcourt les groupes de bâtiments
-        for groupe_batiment in tqdm(self.groupes_batiments):
+        for groupe_batiment in tqdm(self.groupes_batiments, desc="Parcourt des groupes de bâtiments"):
             batiments = groupe_batiment.get_batiments()
             # Il faut au moins deux bâtiments dans le groupe de bâtiments
             if len(batiments) >= 2:

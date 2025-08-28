@@ -66,6 +66,9 @@ class AssociationBatimentEngine:
                     geoserie_1:gpd.GeoDataFrame = prediction_1.get_geodataframe().geometry
                     geoserie_2:gpd.GeoDataFrame = prediction_2.get_geodataframe().geometry
 
+                    if geoserie_1.shape[0]==0 or geoserie_2.shape[0]==0:
+                        continue
+
                     # On récupère les intersections entre les géométries terrain des bâtiments
                     intersections = geoserie_2.sindex.query(geoserie_1, predicate="intersects")
 
@@ -144,6 +147,8 @@ class AssociationBatimentEngine:
         On calcule le z moyen de chaque groupe de bâtiment, et on met à jour la projection au sol des bâtiments
         """
 
+        statistiques = [0,0,0]
+
         for groupe in tqdm(self.groupe_batiments):
             # Estimation rapide de la hauteur du bâtiment
             groupe.compute_z_mean()
@@ -158,8 +163,19 @@ class AssociationBatimentEngine:
                 if z_mean is not None:
                     groupe.estim_z = z_mean
                     groupe.nb_images_z_estim = nb_images
+                    groupe.set_methode_estimation_hauteur("Samon")
+                    statistiques[1]+=1
                 else:
                     # Si cela n'a pas marché, alors on fixe arbitrairement la hauteur du bâtiment à 10 mètres
                     groupe.estim_z = 10
                     groupe.nb_images_z_estim = -1
+                    groupe.set_methode_estimation_hauteur("Echec")
+                    statistiques[2]+=1
+            else:
+                statistiques[0]+=1
+            
             groupe.update_geometry_terrain()
+        print("Méthode utilisée pour estimer la hauteur des bâtiments")
+        print("Rapide : ", statistiques[0])
+        print("Samon : ", statistiques[1])
+        print("Echec : ", statistiques[2])
