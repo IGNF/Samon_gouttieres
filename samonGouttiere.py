@@ -1,6 +1,6 @@
 import argparse
 import os
-from v2.shot import MNT, RAF, Shot
+from v2.shot import MNT, RAF, Shot, Calibration, ShotPompei, ShotOriente
 from v2.prediction import Prediction
 from typing import List
 from lxml import etree
@@ -15,7 +15,7 @@ import geopandas as gpd
 
 class SamonGouttiere:
 
-    def __init__(self, path_chantier:str, path_emprise:str):
+    def __init__(self, path_chantier:str, path_emprise:str, pompei:bool):
         
         # Chemin où se trouve le chantier
         if not os.path.isdir(path_chantier):
@@ -31,6 +31,8 @@ class SamonGouttiere:
         self.groupe_segments:List[GroupeSegments] = []
 
         self.monoscopie:Monoscopie = []
+
+        self.pompei = pompei
 
         self.emprise:gpd.GeoDataFrame = self.charger_emprise(path_emprise)
 
@@ -93,11 +95,11 @@ class SamonGouttiere:
             return ValueError(f"{dir_path} n'existe pas")
         files = [i for i in os.listdir(dir_path) if i[-4:]==".XML"]
         if len(files)!=1:
-            return ValueError(f"Il ne faut qu'un seul fichier orientation dans {dir_path}")
+            raise ValueError(f"Il ne faut qu'un seul fichier orientation dans {dir_path}")
         return os.path.join(dir_path, files[0])
 
 
-    def get_shots(self, predictions_ffl:List[str]) -> List[Shot]:
+    def get_shots(self, predictions_ffl:List[str]) -> List[ShotOriente]:
         """
         Renvoie les objets shots pour chaque image orientée pour lesquelles on dispose des prédictions ffl
         """
@@ -125,6 +127,44 @@ class SamonGouttiere:
                     shot = Shot.createShot(cliche, focale, self.raf, centre_rep_local)
                     shots.append(shot)
         return shots
+    
+
+    def get_cameras_pompei(self)->List[Calibration]:
+        """
+        Lit les fichiers de calibration Micmac
+        """
+        dir_path = os.path.join(self.path_chantier, "orientation")
+        calib_files = [i for i in os.listdir(dir_path) if i[-4:]==".xml" and "AutoCal" in i]
+        calibrations = {}
+        for calib_file in calib_files:
+            calib = Calibration.createCalibration(os.path.join(dir_path, calib_file))
+            calibrations[calib_file] = calib
+        return calibrations
+    
+    def get_shots_pompei(self, calibrations:List[Calibration], predictions_ffl:List[str], mnt:MNT):
+        """
+        Crée les objets Shot à partir des fichiers d'orientation Micmac
+        """
+        dir_path = os.path.join(self.path_chantier, "orientation")
+        ori_files = [i for i in os.listdir(dir_path) if i[-4:]==".xml" and "Orientation" in i]
+        shots = []
+        for ori_file in ori_files:
+            if not ori_file.replace("Orientation-", "").replace(".tif.xml", ".shp") in predictions_ffl:
+                continue
+                
+            shot = ShotPompei.createShot(os.path.join(dir_path, ori_file), calibrations)
+            shot.compute_emprise(mnt)
+            shots.append(shot)  
+        return shots
+    
+
+    def get_images_pompei(self, predictions_ffl:List[str], mnt:MNT)-> List[ShotPompei]:
+        """
+        Récupère les objets Shot à partir d'orientations Micmac
+        """
+        calibrations = self.get_cameras_pompei()
+        shots = self.get_shots_pompei(calibrations, predictions_ffl, mnt)
+        return shots
 
     
 
@@ -145,7 +185,10 @@ class SamonGouttiere:
         self.mnt = MNT(self.get_mnt_path())
         self.raf = RAF(self.get_raf_path())
         predictions_ffl = self.get_predictions_ffl()
-        self.shots = self.get_shots(predictions_ffl)
+        if self.pompei:
+            self.shots = self.get_images_pompei(predictions_ffl, self.mnt)
+        else:
+            self.shots = self.get_shots(predictions_ffl)
 
         
         predictions = []
@@ -291,7 +334,8 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser(description="On calcule la position des goutières")
     parser.add_argument('--input', help='Répertoire où se trouvent les résultats de association_segments')
     parser.add_argument('--emprise', help='Emprise au sol des zones où il faut reconstruire les bâtiments', default=None)
+    parser.add_argument('--pompei', help='True si le chantier a été produit avec Pompei', default=False, type=bool)
     args = parser.parse_args()
 
-    samonGouttiere =  SamonGouttiere(args.input, args.emprise)
+    samonGouttiere =  SamonGouttiere(args.input, args.emprise, args.pompei)
     samonGouttiere.run()

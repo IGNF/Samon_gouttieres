@@ -37,7 +37,7 @@ class OrthoLocale:
         self.epip = None
         
         
-        self.ortho: np.array = None
+        self.ortho: np.ndarray = None
         self.i_j: Tuple[int, int] = (None, None)
         self.correlation: float = None
         self.ground_terrain: Point = None

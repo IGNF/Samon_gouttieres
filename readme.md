@@ -62,3 +62,9 @@ Dans chantiers/gouttieres :
 ## Trois zones d'études
 
 Les résultats ainsi que les fichiers intermédiaires pour trois zones d'études se trouvent dans [resultats](resultats/).
+
+
+
+## Pour s'amuser
+
+L'algorithme est compatible est les orientations Micmac produites par Pompei pour les images historiques

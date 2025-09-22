@@ -4,7 +4,6 @@ from typing import List
 import time
 from v2.samon.tool import print_log 
 from v2.samon.infosResultats import InfosResultats
-from v2.samon.orthoLocale import OrthoLocale
 from v2.shot import Shot, MNT, RAF
 
 
