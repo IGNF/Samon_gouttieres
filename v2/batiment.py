@@ -31,11 +31,11 @@ class Batiment:
         self.groupe_batiment = None # Groupe de bâtiment auquel appartient ce bâtiment
 
         # tableau numpy contenant les informations relatives aux segments
-        self.array:np.array = None
-        self.u:np.array = None
-        self.barycentre:np.array = None
-        self.equation_droite:np.array = None
-        self.d_max:np.array = None
+        self.array:np.ndarray = None
+        self.u:np.ndarray = None
+        self.barycentre:np.ndarray = None
+        self.equation_droite:np.ndarray = None
+        self.d_max:np.ndarray = None
 
 
     def lisser_geometries(self):
