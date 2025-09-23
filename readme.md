@@ -67,4 +67,4 @@ Les résultats ainsi que les fichiers intermédiaires pour trois zones d'études
 
 ## Pour s'amuser
 
-L'algorithme est compatible est les orientations Micmac produites par Pompei pour les images historiques
+L'algorithme est compatible avec les orientations Micmac produites par Pompei pour les images historiques
