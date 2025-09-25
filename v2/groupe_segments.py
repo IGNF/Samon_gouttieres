@@ -500,8 +500,5 @@ class GroupeSegments:
     def altitude_moyenne(self)->float:
         if self.p1 is None or self.p2 is None:
             return None
-        x_mean = (self.p1.x + self.p2.x) / 2
-        y_mean = (self.p1.y + self.p2.y) / 2
         z_mean = (self.p1.z + self.p2.z) / 2
-        z_sol = self.segments[0].mnt.get(x_mean, y_mean)
-        return z_mean - z_sol
+        return z_mean

@@ -49,7 +49,7 @@ class AssociationBatimentEngine:
 
         print("Calcul du z moyen du bâtiment")
         # On calcule une estimation de la hauteur du bâtiment
-        self.compute_z_mean()
+        self.compute_z_mean_v2()
 
         return self.groupe_batiments
 
@@ -179,3 +179,16 @@ class AssociationBatimentEngine:
         print("Rapide : ", statistiques[0])
         print("Samon : ", statistiques[1])
         print("Echec : ", statistiques[2])
+
+
+    def compute_z_mean_v2(self):
+        for groupe in tqdm(self.groupe_batiments):
+            # Estimation rapide de la hauteur du bâtiment
+            estim_z, nb_points = groupe.compute_z_mean_v2()
+            groupe.estim_z = estim_z
+            groupe.nb_images_z_estim = nb_points
+            if nb_points==0:
+                groupe.set_methode_estimation_hauteur("Echec")
+            else:
+                groupe.set_methode_estimation_hauteur("Rapide")
+            groupe.update_geometry_terrain()

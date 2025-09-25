@@ -1,7 +1,7 @@
 from __future__ import annotations
 from shapely import Polygon, LineString, Point, MultiPolygon, intersection, union, buffer
 import numpy as np
-from typing import List
+from typing import List, Tuple
 from v2.shot import Shot, MNT
 from numpy import linalg as LA
 from shapely.validation import make_valid
@@ -37,7 +37,27 @@ class Batiment:
         self.equation_droite:np.ndarray = None
         self.d_max:np.ndarray = None
 
+        # Calcule pour chaque point de la géométrie le vecteur directeur entre le sommet de prise de vue et ce point
+        self.du = self.compute_u()
 
+
+    def compute_u(self)->np.ndarray:
+        """
+        Calcule pour chaque point de la géométrie image le vecteur directeur entre le sommet de prise de vue et le point
+
+        Renvoie un np.ndarray de taille (3,n) avec n le nombre de points de la géométrie image
+        """
+        list_x, list_y = self.geometrie_image.exterior.xy
+        c = []
+        l = []
+        for i in range(len(list_x)-1):
+            c.append(list_x[i])
+            l.append(-list_y[i])
+        c = np.array(c)
+        l = np.array(l)
+        du = self.shot.image_to_bundle(c, l)
+        return du
+    
     def lisser_geometries(self):
         """
         Lisse les polygones pour qu'un segment corresponde à un côté de bâtiment (et non pas à un morceau de côté de bâtiment)
@@ -140,7 +160,7 @@ class Batiment:
     
     
 
-    def compute_ground_geometry(self, estim_z=0)->None:
+    def compute_ground_geometry(self, estim_z=None)->None:
         """
         Calcule l'emprise au sol du bâtiment, projeté sur un MNT
         """
@@ -174,6 +194,76 @@ class Batiment:
     def get_homologues(self)->List[Batiment]:
         return self.batiments_homologues
     
+
+    def compute_z_mean(self, b2:Batiment)->Tuple[List[float], List[float]]:
+        """
+        Calcule un ensemble d'estimations de hauteur du bâtiment à partir de self et de b2.
+
+        Pour chaque couple de points appartenant à self et b2, on calcule la pseudo-intersection et distance entre 
+        les droites formées par ces deux points avec leur sommet de prise de vue. Si la distance est inférieure à 50 cm, on enregistre la hauteur estimée.
+
+        """
+
+        distances = []
+        z_mean = []
+
+        # On récupère les deux sommets de prise de vue
+        p1 = self.shot.get_sommet()
+        p2 = b2.shot.get_sommet()
+        p1 = np.array([p1.x, p1.y, p1.z])
+        p2 = np.array([p2.x, p2.y, p2.z])
+
+        # Vecteur entre les deux sommets de prise de vue
+        D = p2-p1
+
+        # Pour chaque couple de points
+        for i in range(self.du.shape[1]):
+            
+            # Premier vecteur directeur
+            v1 = self.du[:,i].squeeze()
+            
+            distance_min = 1e10
+            j_min = None
+            
+            for j in range(b2.du.shape[1]):
+                
+                # Second vecteur directeur
+                v2 = b2.du[:,j].squeeze()
+                
+                # On calcule la distance entre les deux droites
+                n = np.cross(v1, v2)
+                distance = np.abs(np.sum(n*D))/np.linalg.norm(n)
+                
+                # Pour chaque point i, on récupère la distance minimale
+                if distance < distance_min:
+                    distance_min = distance
+                    j_min = j
+                    
+
+            # Si la distance minimale est inférieure à 0.5 m
+            if distance_min < 0.5:
+                
+                # On calcule la pseudo-intersection
+                v2 = b2.du[:,j_min].squeeze()
+                v1v2 = np.sum(v1*v2)
+                v1v1 = np.sum(v1*v1)
+                v2v2 = np.sum(v2*v2)
+                n1 = v1 - v1v2/v2v2 * v2
+                n2 = v2 - v1v2/v1v1 * v1
+                dn1 = np.sum(D*n1)
+                dn2 = np.sum(D*n2)
+                v1n1 = np.sum(v1*n1)
+                v2n2 = np.sum(v2*n2)
+                l = dn1/v1n1
+                m = -dn2/v2n2
+                q1 = p1+l*v1
+                q2 = p2+m*v2
+                q_mean = (q1+q2)/2
+                z_min = q_mean[2]
+                distances.append(distance_min)
+                z_mean.append(z_min)
+        return distances, z_mean
+
 
 
     def compute_estim_z(self, b2:Batiment):

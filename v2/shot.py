@@ -279,7 +279,7 @@ class ShotOriente(Shot):
             return self.convertback(type_input, c, l)
 
     
-    def image_to_world(self, c, l, dem, prec=0.1, iter_max=3, estim_z=0):
+    def image_to_world(self, c, l, dem, prec=0.1, iter_max=3, estim_z=None):
         """
         Compute the world coordinates of (a) image point(s).
         A Dem must be used.
@@ -300,7 +300,10 @@ class ShotOriente(Shot):
         
         type_input = type(c)
 
-        z_world = dem.get(self.x_pos, self.y_pos) + estim_z
+        if estim_z is None:
+            z_world = dem.get(self.x_pos, self.y_pos)
+        else:
+            z_world = estim_z
         
         z_world = np.full_like(c, z_world)
         x_local, y_local, z_local = self.image_z_to_local(c, l, z_world)
@@ -310,7 +313,11 @@ class ShotOriente(Shot):
         nbr_iter = 0
 
         while not precision_reached and nbr_iter < iter_max:
-            z_world = dem.get(x_world, y_world) + estim_z
+            if estim_z is None:
+                z_world = dem.get(x_world, y_world)
+            else:
+                z_world = estim_z
+            z_world = np.full_like(x_world, z_world)
             # On repasse en euclidien avec le bon Zworld , l'approximation plani ayant un impact minime
             x_local, y_local, z_local = self.world_to_euclidean(x_world, y_world, z_world)
 
@@ -346,6 +353,13 @@ class ShotOriente(Shot):
         # Inversion des deux premières colonnes + transposition
         mat = mat[:, [1, 0, 2]].T
         return mat
+    
+    def image_to_bundle(self, c, l):
+        c, l, z = self.image_to_shot(c, l)
+        x_bundle_1, y_bundle_1, z_bundle_1 = self.shot_to_bundle(c, l, z)
+        point_local = self.mat_eucli.T @ np.vstack([x_bundle_1, y_bundle_1, z_bundle_1])
+        point_local /= np.linalg.norm(point_local)
+        return point_local
 
 
 
@@ -642,7 +656,7 @@ class ShotPompei(Shot):
             return self.convertback(type_input, c, l)
 
     
-    def image_to_world(self, c, l, dem, prec=0.1, iter_max=3, estim_z=0):
+    def image_to_world(self, c, l, dem, prec=0.1, iter_max=3, estim_z=None):
         """
         Compute the world coordinates of (a) image point(s).
         A Dem must be used.
@@ -662,7 +676,11 @@ class ShotPompei(Shot):
         # La fonction calcule le x et y euclidien correspondant à une coordonnées image et un Z local
         type_input = type(c)
 
-        z_world = dem.get(self.x_pos, self.y_pos) + estim_z
+
+        if estim_z is None:
+            z_world = dem.get(self.x_pos, self.y_pos)
+        else:
+            z_world = estim_z
         z_world = np.full_like(c, z_world)
 
         c, l = self.distorsion_correction.compute_reverse(c, l)
@@ -674,7 +692,11 @@ class ShotPompei(Shot):
         nbr_iter = 0
 
         while not precision_reached and nbr_iter < iter_max:
-            z_world = dem.get(x_world, y_world) + estim_z
+            if estim_z is None:
+                z_world = dem.get(x_world, y_world)
+            else:
+                z_world = estim_z
+            z_world = np.full_like(x_world, z_world)
             # On repasse en euclidien avec le bon Zworld , l'approximation plani ayant un impact minime
             x_local, y_local, z_local = self.world_to_euclidean(x_world, y_world, z_world)
             # nouvelle transfo avec un zLocal plus precis
@@ -689,5 +711,18 @@ class ShotPompei(Shot):
             nbr_iter += 1
 
         return self.convertback(type_input, x_world, y_world, z_world)
+    
+
+    def image_to_bundle(self, c, l):
+        """
+        Calcule le vecteur directeur des points (c,l) en coordonnées terrain
+        """
+        c, l = self.distorsion_correction.compute_reverse(c, l)
+        c, l, z = self.image_to_shot(c, l)
+        x_bundle_1, y_bundle_1, z_bundle_1 = self.shot_to_bundle(c, l, z)
+        point_local = self.mat_eucli.T @ np.vstack([x_bundle_1, y_bundle_1, z_bundle_1])
+        point_local /= np.linalg.norm(point_local)
+        return point_local
+
 
 

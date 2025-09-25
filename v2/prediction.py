@@ -30,7 +30,7 @@ class Prediction:
         """
         gdf = gpd.read_file(self.path_predictions)
         batiments:List[Batiment] = []
-        for geometry in gdf.geometry:
+        for geometry in tqdm(gdf.geometry, total=gdf.geometry.shape[0], desc=f"Chargement des géométries de {self.shot.image}"):
             if isinstance(geometry, Polygon):
                 batiments.append(Batiment(geometry, self.shot, self.mnt))
         return batiments
