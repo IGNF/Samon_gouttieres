@@ -14,7 +14,7 @@ class AssociationBatimentEngine:
     Algorithme pour associer les bâtiments entre eux
     """
 
-    def __init__(self, predictions:List[Prediction], monoscopie:Monoscopie, emprise:gpd.GeoDataFrame):
+    def __init__(self, predictions:List[Prediction], monoscopie:Monoscopie, emprise:gpd.GeoDataFrame, pompei:bool):
         self.predictions:List[Prediction] = predictions
         self.monoscopie:Monoscopie = monoscopie
 
@@ -22,12 +22,14 @@ class AssociationBatimentEngine:
 
         self.emprise = emprise
 
+        self.pompei = pompei
+
 
 
     def run(self)->List[GroupeBatiments]:
         print("Calcul des géométries terrain")
         # On projette chaque prédiction du FFL sur le MNT
-        for prediction in self.predictions:
+        for prediction in tqdm(self.predictions):
             prediction.compute_ground_geometry()
 
         if self.emprise is not None:
@@ -37,7 +39,7 @@ class AssociationBatimentEngine:
         
         print("Calcul des géoséries")
         # Pour chaque prédictions du FFL, on crée des tableaux numpy qui permettront d'accélérer le calcul pour associer des bâtiments
-        for prediction in self.predictions:
+        for prediction in tqdm(self.predictions):
             prediction.create_geodataframe()
 
         print("calcul des associations")
@@ -49,7 +51,7 @@ class AssociationBatimentEngine:
 
         print("Calcul du z moyen du bâtiment")
         # On calcule une estimation de la hauteur du bâtiment
-        self.compute_z_mean_v2()
+        self.compute_z_mean()
 
         return self.groupe_batiments
 
@@ -135,11 +137,8 @@ class AssociationBatimentEngine:
                     continue 
                 else:
                     point_3d = infos_resultats.point3d
-                    z = self.get_mnt().get(point_3d[0], point_3d[1])[0]
-                    return point_3d[2] - z, infos_resultats.nb_images
+                    return point_3d[2], infos_resultats.nb_images
         return None, None
-
-
     
 
     def compute_z_mean(self):
@@ -147,48 +146,59 @@ class AssociationBatimentEngine:
         On calcule le z moyen de chaque groupe de bâtiment, et on met à jour la projection au sol des bâtiments
         """
 
-        statistiques = [0,0,0]
+        statistiques = [0,0,0,0]
 
         for groupe in tqdm(self.groupe_batiments):
-            # Estimation rapide de la hauteur du bâtiment
-            groupe.compute_z_mean()
-            # Si on n'est pas parvenu à avoir une estimation du z avec la méthode rapide
-            if groupe.estim_z is None:
-                # On récupère tous les points qui se trouvent sur le bâtiment
-                # Pour cela, sur chaque polygone issus de pvas différentes, on applique un buffer de -2 mètres et on récupère tous les sommets du polygones
-                dictionnaires = groupe.get_point_samon()
-                # On récupère une estimation de la hauteur du bâtiment
-                z_mean, nb_images = self.compute_z_mean_samon(dictionnaires, groupe.get_nb_shots())
-                #z_mean, nb_images = 10, -1 # Cette ligne est utile pour les tests si on ne veut pas utiliser Samon qui rallonge sensiblement les calculs
-                if z_mean is not None:
-                    groupe.estim_z = z_mean
-                    groupe.nb_images_z_estim = nb_images
-                    groupe.set_methode_estimation_hauteur("Samon")
-                    statistiques[1]+=1
-                else:
-                    # Si cela n'a pas marché, alors on fixe arbitrairement la hauteur du bâtiment à 10 mètres
-                    groupe.estim_z = 10
-                    groupe.nb_images_z_estim = -1
-                    groupe.set_methode_estimation_hauteur("Echec")
-                    statistiques[2]+=1
-            else:
+            if len(groupe.batiments)<=1:
+                continue
+            estim_z = groupe.compute_z_mean()
+            if estim_z is not None:
+                groupe.estim_z = estim_z
                 statistiques[0]+=1
+                groupe.set_methode_estimation_hauteur("Barycentre")
+            
+            
+            else:
+
+                # Estimation rapide de la hauteur du bâtiment, seulement dans le cas de Pompei
+                if self.pompei:
+                    estim_z, nb_points = groupe.compute_z_mean_v2()
+                else:
+                    nb_points = 0
+                
+                # Si on n'est pas parvenu à avoir une estimation du z avec la méthode rapide
+                if nb_points!=0:
+                    groupe.estim_z = estim_z
+                    groupe.nb_images_z_estim = nb_points
+                    statistiques[1]+=1
+                    groupe.set_methode_estimation_hauteur("Points")
+                else:
+                    # On récupère tous les points qui se trouvent sur le bâtiment
+                    # Pour cela, sur chaque polygone issus de pvas différentes, on applique un buffer de -2 mètres et on récupère tous les sommets du polygones
+                    dictionnaires = groupe.get_point_samon()
+                    # On récupère une estimation de la hauteur du bâtiment
+                    z_mean, nb_images = self.compute_z_mean_samon(dictionnaires, groupe.get_nb_shots())
+                    #z_mean, nb_images = 10, -1 # Cette ligne est utile pour les tests si on ne veut pas utiliser Samon qui rallonge sensiblement les calculs
+                    if z_mean is not None:
+                        groupe.estim_z = z_mean
+                        groupe.nb_images_z_estim = nb_images
+                        groupe.set_methode_estimation_hauteur("Samon")
+                        statistiques[2]+=1
+                    else:
+                        # Si cela n'a pas marché, alors on fixe arbitrairement la hauteur du bâtiment à 10 mètres
+                        centroid = groupe.batiments[0].geometrie_terrain.centroid
+                        z = groupe.batiments[0].mnt.get(centroid.x, centroid.y)+10
+                        groupe.estim_z = z
+                        groupe.nb_images_z_estim = -1
+                        groupe.set_methode_estimation_hauteur("Echec")
+                        statistiques[3]+=1
+                    
             
             groupe.update_geometry_terrain()
         print("Méthode utilisée pour estimer la hauteur des bâtiments")
-        print("Rapide : ", statistiques[0])
-        print("Samon : ", statistiques[1])
-        print("Echec : ", statistiques[2])
+        print("Barycentre : ", statistiques[0])
+        print("Points : ", statistiques[1])
+        print("Samon : ", statistiques[2])
+        print("Echec : ", statistiques[3])
 
 
-    def compute_z_mean_v2(self):
-        for groupe in tqdm(self.groupe_batiments):
-            # Estimation rapide de la hauteur du bâtiment
-            estim_z, nb_points = groupe.compute_z_mean_v2()
-            groupe.estim_z = estim_z
-            groupe.nb_images_z_estim = nb_points
-            if nb_points==0:
-                groupe.set_methode_estimation_hauteur("Echec")
-            else:
-                groupe.set_methode_estimation_hauteur("Rapide")
-            groupe.update_geometry_terrain()

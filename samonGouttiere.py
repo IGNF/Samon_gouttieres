@@ -124,7 +124,7 @@ class SamonGouttiere:
             for cliche in vol.getiterator("cliche"):
                 image = cliche.find("image").text.strip()
                 if image in pvas:
-                    shot = Shot.createShot(cliche, focale, self.raf, centre_rep_local)
+                    shot = ShotOriente.createShot(cliche, focale, self.raf, centre_rep_local)
                     shots.append(shot)
         return shots
     
@@ -217,7 +217,7 @@ class SamonGouttiere:
         """
         Associer les bâtiments entre eux
         """
-        association_batiments_engine = AssociationBatimentEngine(self.predictions, self.monoscopie, self.emprise)
+        association_batiments_engine = AssociationBatimentEngine(self.predictions, self.monoscopie, self.emprise, self.pompei)
         self.groupe_batiments = association_batiments_engine.run()
 
         os.makedirs(os.path.join(self.path_chantier, "gouttieres", "association_batiment"), exist_ok=True)

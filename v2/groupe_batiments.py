@@ -76,15 +76,21 @@ class GroupeBatiments:
             estim_z_final = estim_z_sum/compte
             if estim_z_final<0 or estim_z_final >= 20:
                 estim_z_final = None
-        self.estim_z = estim_z_final
-        if self.estim_z is not None:
-            self.set_methode_estimation_hauteur("rapide")
+        if estim_z_final is None:
+            return None
+        centroid = self.batiments[0].geometrie_terrain.centroid
+        z = self.batiments[0].mnt.get(centroid.x, centroid.y)
+        return estim_z_final + z
 
 
     def compute_z_mean_v2(self)->Tuple[float, int]:
         i_max = min(100, len(self.batiments)) # Pour certains groupes, on peut avoir 2000 bâtiments, ce qui est très long à traiter... 
         distances = []
         z_mean = []
+
+        centroid = self.batiments[0].geometrie_terrain.centroid
+        z = self.batiments[0].mnt.get(centroid.x, centroid.y)
+
         # Pour chaque couple de bâtiments
         for i1 in range(i_max):
             for i2 in range(i1+1, i_max):
@@ -93,21 +99,29 @@ class GroupeBatiments:
                 # Si les deux bâtiments n'appartiennent pas au même couple
                 if b1.shot.image != b2.shot.image:
                     # On calcule l'estimation de hauteur pour chaque couple de bâtiments
-                    distances_couple, z_mean_couple = b1.compute_z_mean(b2)
+                    distances_couple, z_mean_couple = b1.compute_z_mean(b2, z)
                     distances+=distances_couple
                     z_mean += z_mean_couple
         
         # On calcule une moyenne pondérée de la hauteur du bâtiment. Les poids correspondent à l'inverse de la distance entre les droites (parallaxe)
         sum = 0
         weight = 0
+        
+        centroid = self.batiments[0].geometrie_terrain.centroid
+        z = self.batiments[0].mnt.get(centroid.x, centroid.y)
+
         if len(distances)==0:
-            centroid = self.batiments[0].geometrie_terrain.centroid
-            z = self.batiments[0].mnt.get(centroid.x, centroid.y)+10
-            return z, 0
+            return z+10, 0
         for i in range(len(distances)):
             sum += z_mean[i] / distances[i]
             weight += 1/distances[i]
-        return sum/weight, len(distances)
+        
+        # On vérifie que la hauteur du bâtiment est cohérente
+        hauteur_bati = sum/weight - z
+        if hauteur_bati > 0 and hauteur_bati < 20:
+            return sum/weight, len(distances)
+        else:
+            return z+10, 0
 
 
 

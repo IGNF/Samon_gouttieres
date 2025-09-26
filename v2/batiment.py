@@ -195,7 +195,7 @@ class Batiment:
         return self.batiments_homologues
     
 
-    def compute_z_mean(self, b2:Batiment)->Tuple[List[float], List[float]]:
+    def compute_z_mean(self, b2:Batiment, z_mnt:float)->Tuple[List[float], List[float]]:
         """
         Calcule un ensemble d'estimations de hauteur du bâtiment à partir de self et de b2.
 
@@ -260,8 +260,9 @@ class Batiment:
                 q2 = p2+m*v2
                 q_mean = (q1+q2)/2
                 z_min = q_mean[2]
-                distances.append(distance_min)
-                z_mean.append(z_min)
+                if z_min > z_mnt and z_min < z_mnt+20:
+                    distances.append(distance_min)
+                    z_mean.append(z_min)
         return distances, z_mean
 
 

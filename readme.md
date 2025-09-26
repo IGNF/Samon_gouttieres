@@ -16,6 +16,7 @@ Dans un répertoire chantier doit se trouver :
 * Un répertoire "mnt" contenant un fichier vrt
 * Un répertoire "orientation" contenant le TA sous format xml. Il se trouve généralement dans store-ref/ortho-images/ImagesOrientees/FD[departement]/annee/[...]_AERO/AERO/[...]/*_adjust.XML
 * Un répertoire "raf" contenant la grille RAF
+* Un répertoire "pvas" contenant les images orientées
 
 Eventuellement, il peut s'y trouver :
 * un fichier shapefile (ou geojson) de l'emprise du chantier qui nous intéresse.
@@ -67,4 +68,13 @@ Les résultats ainsi que les fichiers intermédiaires pour trois zones d'études
 
 ## Pour s'amuser
 
-L'algorithme est compatible avec les orientations Micmac produites par Pompei pour les images historiques
+L'algorithme est compatible avec les orientations Micmac produites par Pompei pour les images historiques.
+Pour cela : 
+* les pvas sont les images OIS-Reech corrigées de la distorsion : dans Pompei, lancer distorsion_correction.py et récupérer les images qui sont dans le répertoire images_without_distorsion
+* Mettre la totalité des fichiers xml présents dans Ori-TerrainFinal_10_10_0.5_AllFree_Final et les mettre dans le répertoire orientation
+* Appliquer sur les images orientées un algorithme de contour de bâtiments
+
+Puis lancer la ligne suivante :
+```
+python samonGouttiere.py --input [répertoire] --emprise [emprise] --pompei True
+```

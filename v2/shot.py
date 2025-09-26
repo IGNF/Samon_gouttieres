@@ -180,6 +180,8 @@ class Shot:
     
 
     def get_sommet(self):
+        if isinstance(self.z_pos, np.float32):
+            return Point(self.x_pos, self.y_pos, self.z_pos)
         return Point(self.x_pos, self.y_pos, self.z_pos[0])
     
 
@@ -205,7 +207,7 @@ class ShotOriente(Shot):
 
     @staticmethod
     def createShot(cliche, focale, raf, centre_rep_local):
-        shot = Shot()
+        shot = ShotOriente()
         model = cliche.find(".//model")
         pt3d = model.find(".//pt3d")
         x = float(pt3d.find(".//x").text)
@@ -489,86 +491,6 @@ class Calibration:
         self.affine_b2 = float(root.find(".//b2").text)
 
 
-class DistorsionCorrection:
-
-    def __init__(self, calibration:Calibration) -> None:
-        self.calibration = calibration
-
-    def create_cc_ll(self):
-        l = np.arange(self.calibration.sizeX)
-        c = np.arange(self.calibration.sizeY)
-        self.cc, self.ll = np.meshgrid(l, c)
-        self.du = self.cc - self.calibration.PPX
-        self.dv = self.ll - self.calibration.PPY
-        self.rho = self.du**2 + self.dv**2
-
-    def compute(self, c, l):
-        self.du = c - self.calibration.PPX
-        self.dv = l - self.calibration.PPY
-        self.rho = self.du**2 + self.dv**2
-        self.compute_Dr()
-        self.computeDecentric()
-        self.computeAffine()
-        self.computeAll()
-        return self.DPx, self.DPy
-    
-
-    def convertback(self, data_type: type, *args: np.ndarray):
-        # if inputs were lists, tuples or floats, convert back to original type.
-        output = []
-        for val in args:
-            if data_type == list:
-                output.append(val.tolist())
-            elif data_type == np.ndarray:
-                output.append(val)
-            # elif data_type == pd.core.series.Series:
-            #     output.append(val)
-            else:
-                output.append(val.item())
-        if len(output) > 1:
-            return *output,
-        else:
-            return output[0]
-
-    
-    def compute_Dr(self):
-        intermediaire = (1+self.calibration.distorsionCoefficient[0]*self.rho+self.calibration.distorsionCoefficient[1]*self.rho**2+self.calibration.distorsionCoefficient[2]*self.rho**3+self.calibration.distorsionCoefficient[3]*self.rho**4)
-        self.drx = self.calibration.PPX + intermediaire * self.du
-        self.dry = self.calibration.PPY + intermediaire * self.dv
-        
-    def computeDecentric(self):
-        P1x = self.calibration.decentric_P1 * (2*self.du**2 + self.rho)
-        P1y = self.calibration.decentric_P1 * 2*self.du *self.dv
-        P2x = self.calibration.decentric_P2 * 2*self.du *self.dv
-        P2y = self.calibration.decentric_P2 * (2*self.dv**2 + self.rho)
-        self.decentricx = P1x + P2x
-        self.decentricy = P1y + P2y
-        
-    def computeAffine(self):
-        self.affine = self.calibration.affine_b1 * self.du + self.calibration.affine_b2 * self.dv
-
-    def computeAll(self):
-        self.DPx = self.drx + self.decentricx + self.affine
-        self.DPy = self.dry + self.decentricy
-
-    def compute_reverse(self, c0, l0):
-        c = np.arange(np.min(c0)-10, np.max(c0)+10)
-        l = np.arange(np.min(l0)-10, np.max(l0)+10)
-
-        cc, ll = np.meshgrid(c, l)
-        cc = cc.reshape((-1, 1))
-        ll = ll.reshape((-1, 1))
-        cc_cor, ll_cor = self.compute(cc, ll)
-        points_cor = np.concatenate([cc_cor, ll_cor], axis=1)
-        c_grid_data = LinearNDInterpolator(points_cor, cc)
-        l_grid_data = LinearNDInterpolator(points_cor, ll)
-        c_cor = c_grid_data(c0, l0)
-        l_cor = l_grid_data(c0, l0)
-        if c_cor.ndim==1:
-            return c_cor, l_cor
-        return c_cor[:,0], l_cor[:,0]
-
-
 
 class ShotPompei(Shot):
 
@@ -623,8 +545,6 @@ class ShotPompei(Shot):
         rotMatrice[2,2] = float(L3.split()[2])
         shot.mat_eucli = rotMatrice.T
 
-        shot.distorsion_correction = DistorsionCorrection(calibration)
-
         return shot
     
     def compute_emprise(self, mnt):
@@ -652,7 +572,6 @@ class ShotPompei(Shot):
             x_bundle, y_bundle, z_bundle = self.local_to_bundle(x_world, y_world, z_world)
             x_shot, y_shot, z_shot = self.bundle_to_shot(x_bundle, y_bundle, z_bundle)
             c, l = self.shot_to_image(x_shot, y_shot, z_shot)
-            c, l = self.distorsion_correction.compute(c, l)
             return self.convertback(type_input, c, l)
 
     
@@ -683,7 +602,6 @@ class ShotPompei(Shot):
             z_world = estim_z
         z_world = np.full_like(c, z_world)
 
-        c, l = self.distorsion_correction.compute_reverse(c, l)
 
         x_local, y_local, z_local = self.image_z_to_local(c, l, z_world)
         # On a les coordonnées locales approchées (car z non local) on passe en world
@@ -717,7 +635,6 @@ class ShotPompei(Shot):
         """
         Calcule le vecteur directeur des points (c,l) en coordonnées terrain
         """
-        c, l = self.distorsion_correction.compute_reverse(c, l)
         c, l, z = self.image_to_shot(c, l)
         x_bundle_1, y_bundle_1, z_bundle_1 = self.shot_to_bundle(c, l, z)
         point_local = self.mat_eucli.T @ np.vstack([x_bundle_1, y_bundle_1, z_bundle_1])
