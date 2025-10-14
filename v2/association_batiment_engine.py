@@ -34,7 +34,7 @@ class AssociationBatimentEngine:
 
         if self.emprise is not None:
             print("On ne conserve que les bâtiments à l'intérieur de l'emprise")
-            for prediction in self.predictions:
+            for prediction in tqdm(self.predictions):
                 prediction.check_in_emprise(self.emprise)
         
         print("Calcul des géoséries")
@@ -42,7 +42,7 @@ class AssociationBatimentEngine:
         for prediction in tqdm(self.predictions):
             prediction.create_geodataframe()
 
-        print("calcul des associations")
+        print("Calcul des associations")
         # Pour chaque bâtiment, on cherche sur les autres prédictions le bâtiment avec lequel il se superpose le plus
         self.association()
 
@@ -59,7 +59,7 @@ class AssociationBatimentEngine:
 
     def association(self):
         # On parcourt les shapefile
-        for prediction_1 in self.predictions:
+        for prediction_1 in tqdm(self.predictions):
             
             # On parcourt les autres shapefile
             for prediction_2 in self.predictions:
@@ -74,7 +74,7 @@ class AssociationBatimentEngine:
                     # On récupère les intersections entre les géométries terrain des bâtiments
                     intersections = geoserie_2.sindex.query(geoserie_1, predicate="intersects")
 
-                    for i in tqdm(range(geoserie_1.shape[0])):
+                    for i in range(geoserie_1.shape[0]):
                         
                         # Pour chaque bâtiment, on récupère parmi les bâtiments qu'il intersecte celui avec lequel il partage la plus grande aire
                         bati_1 = prediction_1.get_batiment_i(i)

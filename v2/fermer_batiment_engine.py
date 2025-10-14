@@ -125,9 +125,11 @@ class FermerBatimentEngine:
             
             self.fermer_deuxieme_tentative(groupe_batiment)
             if groupe_batiment.geometrie_fermee_valide():
+                groupe_batiment.set_methode_fermeture("Photogrammetrie")
                 fermeture_valide[0]+=1
             else:
                 fermeture_valide[1]+=1
+                groupe_batiment.projection_FFL()
 
         print(f"Fermeture projection : {fermeture_valide[0]}")
         print(f"Fermeture ratée : {fermeture_valide[1]}")

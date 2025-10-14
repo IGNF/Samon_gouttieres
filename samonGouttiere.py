@@ -12,15 +12,22 @@ from v2.calcul_intersection_engine import CalculIntersectionEngine
 from v2.fermer_batiment_engine import FermerBatimentEngine
 from v2.samon.monoscopie import Monoscopie
 import geopandas as gpd
+from shapely import Polygon
+from tqdm import tqdm
+import time
+import warnings
+warnings.filterwarnings("ignore", message="'crs' was not provided")
 
 class SamonGouttiere:
 
-    def __init__(self, path_chantier:str, path_emprise:str, pompei:bool):
+    def __init__(self, path_chantier:str, path_output:str, path_emprise:str, pompei:bool):
         
         # Chemin où se trouve le chantier
         if not os.path.isdir(path_chantier):
             return ValueError(f"{path_chantier} n'est pas un répertoire")
         self.path_chantier = path_chantier
+        self.path_output = path_output
+        os.makedirs(os.path.join(self.path_output, "gouttieres"), exist_ok=True)
 
         self.mnt:MNT = None
         self.raf:RAF = None
@@ -125,7 +132,9 @@ class SamonGouttiere:
                 image = cliche.find("image").text.strip()
                 if image in pvas:
                     shot = ShotOriente.createShot(cliche, focale, self.raf, centre_rep_local)
-                    shots.append(shot)
+                    emprise:Polygon = shot.emprise
+                    if emprise.contains(self.emprise).any():
+                        shots.append(shot)
         return shots
     
 
@@ -169,12 +178,14 @@ class SamonGouttiere:
     
 
     def run(self):
+        tic = time.time()
         self.load()
         self.lisser_geometries()
         self.association_bati()
         self.association_segments()
         self.calculer_intersections()
         self.fermer_batiment()
+        print(f"Durée du traitement : {time.time() - tic} secondes")
 
 
 
@@ -207,10 +218,10 @@ class SamonGouttiere:
         """
         
         print("Lissage de la géométrie")
-        os.makedirs(os.path.join(self.path_chantier, "gouttieres", "nettoyage"), exist_ok=True)
-        for prediction in self.predictions:
+        os.makedirs(os.path.join(self.path_output, "gouttieres", "nettoyage"), exist_ok=True)
+        for prediction in tqdm(self.predictions):
             prediction.lisser_geometries()
-            prediction.export_geometry_image(os.path.join(self.path_chantier, "gouttieres", "nettoyage"))
+            prediction.export_geometry_image(os.path.join(self.path_output, "gouttieres", "nettoyage"))
 
 
     def association_bati(self):
@@ -220,9 +231,9 @@ class SamonGouttiere:
         association_batiments_engine = AssociationBatimentEngine(self.predictions, self.monoscopie, self.emprise, self.pompei)
         self.groupe_batiments = association_batiments_engine.run()
 
-        os.makedirs(os.path.join(self.path_chantier, "gouttieres", "association_batiment"), exist_ok=True)
+        os.makedirs(os.path.join(self.path_output, "gouttieres", "association_batiment"), exist_ok=True)
         for prediction in self.predictions:
-            prediction.export_geometry_terrain(os.path.join(self.path_chantier, "gouttieres", "association_batiment"))
+            prediction.export_geometry_terrain(os.path.join(self.path_output, "gouttieres", "association_batiment"))
 
     
     def association_segments(self):
@@ -230,9 +241,9 @@ class SamonGouttiere:
         association_segments_engine = AssociationSegmentsEngine(self.groupe_batiments)
         self.groupe_segments = association_segments_engine.run()
         
-        os.makedirs(os.path.join(self.path_chantier, "gouttieres", "association_segments"), exist_ok=True)
+        os.makedirs(os.path.join(self.path_output, "gouttieres", "association_segments"), exist_ok=True)
         for prediction in self.predictions:
-            prediction.export_segment_geometry_terrain(os.path.join(self.path_chantier, "gouttieres", "association_segments"))
+            prediction.export_segment_geometry_terrain(os.path.join(self.path_output, "gouttieres", "association_segments"))
 
 
     def calculer_intersections(self):
@@ -259,9 +270,9 @@ class SamonGouttiere:
                 residus.append(groupe_segments.get_residu_moyen())
                 identifiant.append(groupe_segments.get_identifiant())
 
-        os.makedirs(os.path.join(self.path_chantier, "gouttieres", "intersections"), exist_ok=True)
+        os.makedirs(os.path.join(self.path_output, "gouttieres", "intersections"), exist_ok=True)
         gdf = gpd.GeoDataFrame({"id":identifiant, "residus":residus, "d_mean":d_mean, "nb_segments":nb_segments, "geometry":geometries}, crs="EPSG:2154")
-        gdf.to_file(os.path.join(self.path_chantier, "gouttieres", "intersections", "intersections.gpkg"))
+        gdf.to_file(os.path.join(self.path_output, "gouttieres", "intersections", "intersections.gpkg"))
 
 
     def fermer_batiment(self):
@@ -278,6 +289,7 @@ class SamonGouttiere:
         estimation_z = []
         delta_estim = []
 
+
         for groupe_batiment in self.groupe_batiments:
             geometrie = groupe_batiment.get_geometrie_fermee()
             for geom in geometrie.geoms:
@@ -293,12 +305,15 @@ class SamonGouttiere:
                     delta_z = point[2] - z
                     delta_z_list.append(delta_z[0])
                 delta_z_mean = sum(delta_z_list)/len(delta_z_list)
-                delta_estim.append(groupe_batiment.estim_z - delta_z_mean)
+                if groupe_batiment.estim_z is not None:
+                    delta_estim.append(groupe_batiment.estim_z - delta_z_mean)
+                else:
+                    delta_estim.append(0)
         d = {"id_bati":identifiant, "methode":methode, "estim_alti":methode_estimation_alti, "estim_z":estimation_z, "delta_estim":delta_estim, "geometry":geometries}
         
-        os.makedirs(os.path.join(self.path_chantier, "gouttieres", "batiments_fermes"), exist_ok=True)
+        os.makedirs(os.path.join(self.path_output, "gouttieres", "batiments_fermes"), exist_ok=True)
         gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
-        gdf.to_file(os.path.join(self.path_chantier, "gouttieres", "batiments_fermes", "batiments_fermes.gpkg"))
+        gdf.to_file(os.path.join(self.path_output, "gouttieres", "batiments_fermes", "batiments_fermes.gpkg"))
 
     def export_intersections_ajustees(self):
         geometries = []
@@ -320,9 +335,9 @@ class SamonGouttiere:
                     identifiant.append(groupe_segments.get_identifiant())
                     identifiant_bati.append(groupe_batiments.get_identifiant())
 
-        os.makedirs(os.path.join(self.path_chantier, "gouttieres", "batiments_fermes"), exist_ok=True)
+        os.makedirs(os.path.join(self.path_output, "gouttieres", "batiments_fermes"), exist_ok=True)
         gdf = gpd.GeoDataFrame({"id":identifiant, "residus":residus, "d_mean":d_mean, "nb_segments":nb_segments, "id_bati":identifiant_bati, "geometry":geometries}, crs="EPSG:2154")
-        gdf.to_file(os.path.join(self.path_chantier, "gouttieres", "batiments_fermes", "intersections.gpkg"))
+        gdf.to_file(os.path.join(self.path_output, "gouttieres", "batiments_fermes", "intersections.gpkg"))
         
 
 
@@ -332,10 +347,11 @@ class SamonGouttiere:
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="On calcule la position des goutières")
-    parser.add_argument('--input', help='Répertoire où se trouvent les résultats de association_segments')
+    parser.add_argument('--input', help='Répertoire où se trouve le chantier')
+    parser.add_argument('--output', help='Répertoire où enregistrer les résultats')
     parser.add_argument('--emprise', help='Emprise au sol des zones où il faut reconstruire les bâtiments', default=None)
     parser.add_argument('--pompei', help='True si le chantier a été produit avec Pompei', default=False, type=bool)
     args = parser.parse_args()
 
-    samonGouttiere =  SamonGouttiere(args.input, args.emprise, args.pompei)
+    samonGouttiere =  SamonGouttiere(args.input, args.output, args.emprise, args.pompei)
     samonGouttiere.run()

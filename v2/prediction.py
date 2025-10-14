@@ -37,7 +37,7 @@ class Prediction:
     
 
     def lisser_geometries(self):
-        for batiment in tqdm(self.batiments):
+        for batiment in self.batiments:
             batiment.lisser_geometries()
         self.delete_batiments_invalides()
 
@@ -67,7 +67,7 @@ class Prediction:
 
     def check_in_emprise(self, emprise):
         liste_valide = []
-        for batiment in tqdm(self.batiments):
+        for batiment in self.batiments:
             if batiment.geometrie_terrain.within(emprise).any():
                 liste_valide.append(batiment)
         self.batiments = liste_valide

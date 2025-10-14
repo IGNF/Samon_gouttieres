@@ -24,6 +24,12 @@ class OrthoLocale:
         self.shot:Shot = shot
         self.size = size
         self.pva_path = pva_path
+        if os.path.isfile(pva_path+".tif"):
+            self.pva_path = pva_path+".tif"
+        elif os.path.isfile(pva_path+".jpg"):
+            self.pva_path = pva_path+".jpg"
+        elif os.path.isfile(pva_path+".jp2"):
+            self.pva_path = pva_path+".jp2"
 
         self.pva = Pva(self.pva_path, path_save_pi)
         

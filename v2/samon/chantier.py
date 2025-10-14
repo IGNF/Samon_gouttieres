@@ -57,7 +57,7 @@ class Chantier:
         Crée les deux orthos extraites de la BD Ortho : une grande et une petite
         """
         
-        orthoLocale = OrthoLocale(self.resolution, self.point, image_maitresse, self.projet.size_bd_ortho, os.path.join(self.projet.pva, image_maitresse.image+".tif"), self.projet, os.path.join(self.path, "orthos_locales"), os.path.join(self.path, "decalage"))
+        orthoLocale = OrthoLocale(self.resolution, self.point, image_maitresse, self.projet.size_bd_ortho, os.path.join(self.projet.pva, image_maitresse.image), self.projet, os.path.join(self.path, "orthos_locales"), os.path.join(self.path, "decalage"))
         ortho = orthoLocale.create_small_ortho_numpy(np.array([orthoLocale.center.x]), np.array([orthoLocale.center.y]), orthoLocale.size, 3)
         if ortho is not None:
             self.bd_ortho = Ortho(orthoLocale.resolution, self.projet.size_bd_ortho, os.path.join(self.path, "bd_ortho"), centre=self.point, image=ortho[0,:,:,:])
@@ -85,7 +85,7 @@ class Chantier:
         # On parcourt chaque pva
         for pva in self.pvas:
             # On crée une ortho locale à partir de cette pva
-            orthoLocale = OrthoLocale(self.resolution, self.point, pva, self.projet.size_orthoLocale, os.path.join(self.projet.pva, pva.image+".tif"), self.projet, os.path.join(self.path, "orthos_locales"), os.path.join(self.path, "decalage"))
+            orthoLocale = OrthoLocale(self.resolution, self.point, pva, self.projet.size_orthoLocale, os.path.join(self.projet.pva, pva.image), self.projet, os.path.join(self.path, "orthos_locales"), os.path.join(self.path, "decalage"))
             ortho = None
             if contains(pva.emprise, orthoLocale.emprise):
                 ortho = orthoLocale.create_small_ortho_numpy(np.array([orthoLocale.center.x]), np.array([orthoLocale.center.y]), orthoLocale.size, 3)

@@ -3,7 +3,7 @@ from typing import List, Tuple
 from v2.groupe_segments import GroupeSegments
 from v2.segments import Segment
 import numpy as np
-from shapely import Point, Polygon, make_valid, GeometryCollection, LineString
+from shapely import Point, Polygon, make_valid, GeometryCollection, LineString, MultiPolygon
 from v2.shot import Shot
 import statistics
 from shapely.ops import polygonize_full
@@ -355,3 +355,19 @@ class GroupeBatiments:
             if b.shot==bati.shot:
                 batiments.append(b)
         return batiments
+    
+
+
+    def projection_FFL(self):
+        batiment_principal = self.get_batiment_nearest_nadir()
+
+        # On récupère tous les bâtiments issu de la même pva que le bâtiment principal
+        batiments_principaux = self.get_all_bati_same_PVA(batiment_principal)
+
+        polygones = []
+        for p in batiments_principaux:
+            p.compute_ground_geometry()
+            polygones.append(p.geometrie_terrain)
+
+        self.geometrie_fermee = MultiPolygon(polygones)
+        self.set_methode_fermeture("Projection")
