@@ -130,7 +130,9 @@ class AssociationBatimentEngine:
         """
         On calcule tous les points contenus dans dictionnaire avec Samon. On s'arrête dès qu'un point semble satisfaisant (suffisamment d'images utilisées pour le calculer)
         """
-        for dictionnaire in dictionnaires:
+        for i, dictionnaire in enumerate(dictionnaires):
+            if i > 4:
+                break
             infos_resultats:InfosResultats = self.monoscopie.run(dictionnaire["point"], dictionnaire["shot"])
             if infos_resultats.reussi:
                 if nb_shots >=3 and infos_resultats.nb_images<3:

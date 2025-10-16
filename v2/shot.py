@@ -206,7 +206,7 @@ class ShotOriente(Shot):
 
 
     @staticmethod
-    def createShot(cliche, focale, raf, centre_rep_local):
+    def createShot(cliche, raf, centre_rep_local, sensors):
         shot = ShotOriente()
         model = cliche.find(".//model")
         pt3d = model.find(".//pt3d")
@@ -215,6 +215,7 @@ class ShotOriente(Shot):
         z = float(pt3d.find(".//z").text)
         shot.x_pos = x
         shot.y_pos = y
+        #shot.z_pos = np.array([z]) # A modifier si le fichier ta est en altitude et non en hauteur
         shot.z_pos = z-raf.get(x, y)
         shot.sommet = [shot.x_pos, shot.y_pos, shot.z_pos]
         
@@ -236,9 +237,13 @@ class ShotOriente(Shot):
 
         shot.image = cliche.find(".//image").text.strip()
         
-        shot.x_ppa = focale[0]
-        shot.y_ppa = focale[1]
-        shot.focal = focale[2]
+        for sensor in sensors:
+            if sensor.find(".//name").text==cliche.find(".//origine").text:
+                focal = sensor.find(".//focal")
+
+                shot.x_ppa = float(focal.find(".//x").text)
+                shot.y_ppa = float(focal.find(".//y").text)
+                shot.focal = float(focal.find(".//z").text)
 
         shot.x_pos_eucli, shot.y_pos_eucli, shot.z_pos_eucli = shot.world_to_euclidean(shot.x_pos, shot.y_pos, shot.z_pos)
 

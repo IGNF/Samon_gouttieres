@@ -2,3 +2,5 @@ chantiers
 *.pyc
 *.log
 Documentation/*
+
+run.sh

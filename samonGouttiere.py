@@ -122,16 +122,12 @@ class SamonGouttiere:
         shots = []
         for vol in root.getiterator("vol"):
 
-            focal = vol.find(".//focal")
-            focale_x = float(focal.find(".//x").text)
-            focale_y = float(focal.find(".//y").text)
-            focale_z = float(focal.find(".//z").text)
-            focale = [focale_x, focale_y, focale_z]
-            
+            sensors = vol.findall(".//sensor")
+
             for cliche in vol.getiterator("cliche"):
                 image = cliche.find("image").text.strip()
                 if image in pvas:
-                    shot = ShotOriente.createShot(cliche, focale, self.raf, centre_rep_local)
+                    shot = ShotOriente.createShot(cliche, self.raf, centre_rep_local, sensors)
                     emprise:Polygon = shot.emprise
                     if emprise.contains(self.emprise).any():
                         shots.append(shot)
