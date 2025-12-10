@@ -83,5 +83,5 @@ def download_data_BDTopo(bbox, layer):
 
 EPSG = 2154
 layer = 'BDTOPO_V3:batiment'
-bbox = [892700,6246800, 893900, 6248200]
+bbox = [429500,6678000, 462900, 6706700]
 download_data_BDTopo(bbox, layer)

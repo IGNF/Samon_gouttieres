@@ -1,6 +1,6 @@
 from __future__ import annotations
 from v2.segments import Segment
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import numpy as np
 from shapely import LineString, Point
 
@@ -315,11 +315,11 @@ class GroupeSegments:
             self._supprime = True
 
         # On vérifie que la hauteur du bord de toit reste cohérent par rapport au MNT : entre -10 mètres et +150 mètres
-        altitude_moyenne = self.altitude_moyenne()
-        if altitude_moyenne is None:
+        hauteur_batiment = self.hauteur_batiment()
+        if hauteur_batiment is None:
             self._supprime = True
             return True
-        if altitude_moyenne < -10 or altitude_moyenne > 150:
+        if hauteur_batiment < -10 or hauteur_batiment > 150:
             self._supprime = True
         return True
 
@@ -502,3 +502,14 @@ class GroupeSegments:
             return None
         z_mean = (self.p1.z + self.p2.z) / 2
         return z_mean
+    
+
+    def hauteur_batiment(self)->float:
+        if self.p1 is None or self.p2 is None:
+            return None
+        z_mean = self.altitude_moyenne()
+        mnt = self.segments[0].mnt
+        z_sol_x = (self.p1.x + self.p2.x) / 2
+        z_sol_y = (self.p1.y + self.p2.y) / 2
+        z_sol = mnt.get(z_sol_x, z_sol_y)
+        return z_mean-z_sol

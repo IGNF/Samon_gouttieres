@@ -129,7 +129,7 @@ class SamonGouttiere:
                 if image in pvas:
                     shot = ShotOriente.createShot(cliche, self.raf, centre_rep_local, sensors)
                     emprise:Polygon = shot.emprise
-                    if emprise.contains(self.emprise).any():
+                    if emprise.intersects(self.emprise).any():
                         shots.append(shot)
         return shots
     
@@ -199,7 +199,7 @@ class SamonGouttiere:
 
         
         predictions = []
-        for prediction_ffl in predictions_ffl:
+        for prediction_ffl in tqdm(predictions_ffl):
             for shot in self.shots:
                 if shot.image+".shp" == prediction_ffl or shot.image+".gpkg" == prediction_ffl:
                     predictions.append(Prediction(shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt))
