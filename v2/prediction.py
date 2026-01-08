@@ -76,11 +76,13 @@ class Prediction:
     def create_geodataframe(self):
         geometries = []
         identifiant = []
+        self.batiments_keep = []
 
         for batiment in self.batiments:
-            if batiment.is_valid():
+            if batiment.is_valid() and not batiment._marque:
                 geometries.append(batiment.get_geometrie_terrain())
                 identifiant.append(batiment.get_identifiant())
+                self.batiments_keep.append(batiment)
 
         self.gdf = gpd.GeoDataFrame({"id":identifiant, "geometry":geometries})
 
@@ -95,7 +97,7 @@ class Prediction:
         self.batiments = batiments
 
     def get_batiment_i(self, i:int)->Batiment:
-        return self.batiments[i]
+        return self.batiments_keep[i]
     
     def get_batiments(self):
         return self.batiments

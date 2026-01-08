@@ -194,6 +194,10 @@ class Batiment:
     def get_homologues(self)->List[Batiment]:
         return self.batiments_homologues
     
+    def init(self):
+        self.batiments_homologues = []
+        self._marque = False
+
 
     def compute_z_mean(self, b2:Batiment, z_mnt:float)->Tuple[List[float], List[float]]:
         """

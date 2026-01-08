@@ -36,6 +36,7 @@ class AssociationBatimentEngine:
             print("On ne conserve que les bâtiments à l'intérieur de l'emprise")
             for prediction in tqdm(self.predictions):
                 prediction.check_in_emprise(self.emprise)
+
         
         print("Calcul des géoséries")
         # Pour chaque prédictions du FFL, on crée des tableaux numpy qui permettront d'accélérer le calcul pour associer des bâtiments
@@ -53,7 +54,44 @@ class AssociationBatimentEngine:
         # On calcule une estimation de la hauteur du bâtiment
         self.compute_z_mean()
 
+
+        groupes_batiments_2 = []
+        print("Division des grands groupes de bâtiments")
+        for groupe_batiment in tqdm(self.groupe_batiments):
+            batiments = groupe_batiment.get_batiments()
+            if len(batiments)>100:
+                for batiment in batiments:
+                    batiment.init()
+                groupe_batiment.estim_z = None
+                groupe_batiment.nb_images_z_estim = None
+            else:
+                groupes_batiments_2.append(groupe_batiment)
+            
+        print("Calcul des géoséries des grands groupes de bâtiments")
+        for prediction in tqdm(self.predictions):
+            prediction.create_geodataframe()
+
+        print("Calcul des associations des grands groupes de bâtiments")
+        # Pour chaque bâtiment, on cherche sur les autres prédictions le bâtiment avec lequel il se superpose le plus
+        self.association()
+
+        # On crée le graphe connexe qui regroupe tous les bâtiments qui ont été associés
+        groupes_batiments_2 += self.graphe_connexe()
+        self.groupe_batiments = groupes_batiments_2
+        
+        print("Calcul du z moyen des grands groupes de bâtiments")
+        # On calcule une estimation de la hauteur du bâtiment
+        self.compute_z_mean()
+
+
         return self.groupe_batiments
+    
+
+    def init(self):
+        self.groupe_batiments = []
+        
+        for prediction in tqdm(self.predictions):
+            prediction.delete_homol()
 
 
 
@@ -152,6 +190,8 @@ class AssociationBatimentEngine:
 
         for groupe in tqdm(self.groupe_batiments):
             if len(groupe.batiments)<=1:
+                continue
+            if groupe.estim_z is not None:
                 continue
             estim_z = groupe.compute_z_mean()
             if estim_z is not None:
