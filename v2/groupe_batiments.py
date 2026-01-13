@@ -7,6 +7,7 @@ from shapely import Point, Polygon, make_valid, GeometryCollection, LineString, 
 from v2.shot import Shot
 import statistics
 from shapely.ops import polygonize_full
+import geopandas as gpd
 
 
 id_debug = 618
@@ -371,3 +372,32 @@ class GroupeBatiments:
 
         self.geometrie_fermee = MultiPolygon(polygones)
         self.set_methode_fermeture("Projection")
+
+
+    def get_reference_bati(self):
+        shots = {}
+        for batiment in self.get_batiments():
+            shot = batiment.shot
+            if shot.image not in shots.keys():
+                shots[shot.image] = [batiment.geometrie_terrain]
+            else:
+                shots[shot.image].append(batiment.geometrie_terrain)
+        
+        gdf_max = None
+        area_max = 0
+        for value in shots.values():
+            union = gpd.GeoDataFrame({"geometry":value}).union_all()
+            if isinstance(union, Polygon):
+                polygons = [union]
+            else:
+                polygons = list(union.geoms)
+            gdf = gpd.GeoDataFrame(
+                geometry=polygons,
+                crs=2154
+            )
+            x0, y0, x1, y1 = gdf.total_bounds
+            area = Polygon.from_bounds(x0, y0, x1, y1).area
+            if area > area_max:
+                area_max = area
+                gdf_max = gdf
+        return gdf_max

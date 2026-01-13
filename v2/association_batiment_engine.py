@@ -59,32 +59,35 @@ class AssociationBatimentEngine:
         print("Division des grands groupes de bâtiments")
         for groupe_batiment in tqdm(self.groupe_batiments):
             batiments = groupe_batiment.get_batiments()
-            if len(batiments)>100:
+            if len(batiments)>30:
                 for batiment in batiments:
                     batiment.init()
-                groupe_batiment.estim_z = None
-                groupe_batiment.nb_images_z_estim = None
+                groupes_batiments_2+=self.appariement_2(groupe_batiment)
             else:
                 groupes_batiments_2.append(groupe_batiment)
             
-        print("Calcul des géoséries des grands groupes de bâtiments")
-        for prediction in tqdm(self.predictions):
-            prediction.create_geodataframe()
-
-        print("Calcul des associations des grands groupes de bâtiments")
-        # Pour chaque bâtiment, on cherche sur les autres prédictions le bâtiment avec lequel il se superpose le plus
-        self.association()
-
-        # On crée le graphe connexe qui regroupe tous les bâtiments qui ont été associés
-        groupes_batiments_2 += self.graphe_connexe()
         self.groupe_batiments = groupes_batiments_2
-        
-        print("Calcul du z moyen des grands groupes de bâtiments")
-        # On calcule une estimation de la hauteur du bâtiment
-        self.compute_z_mean()
-
 
         return self.groupe_batiments
+    
+
+    def appariement_2(self, groupe_batiment:GroupeBatiments):
+        # On prend une référence
+        reference_bati = groupe_batiment.get_reference_bati()
+        groupes = [[] for i in range(reference_bati.shape[0])]
+
+        for batiment in groupe_batiment.get_batiments():
+            area = np.array(reference_bati.intersection(batiment.geometrie_terrain).area)
+            groupes[np.argmax(area)].append(batiment)
+
+        new_groupes_batiments = []
+        for groupe in groupes:
+            new_groupe_batiments = GroupeBatiments(groupe)
+            new_groupe_batiments.estim_z = groupe_batiment.estim_z
+            new_groupe_batiments.nb_images_z_estim = groupe_batiment.nb_images_z_estim
+            new_groupes_batiments.append(new_groupe_batiments)
+        return new_groupes_batiments
+
     
 
     def init(self):
