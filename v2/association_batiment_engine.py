@@ -55,18 +55,21 @@ class AssociationBatimentEngine:
         self.compute_z_mean()
 
 
-        groupes_batiments_2 = []
-        print("Division des grands groupes de bâtiments")
-        for groupe_batiment in tqdm(self.groupe_batiments):
-            batiments = groupe_batiment.get_batiments()
-            if len(batiments)>30:
-                for batiment in batiments:
-                    batiment.init()
-                groupes_batiments_2+=self.appariement_2(groupe_batiment)
-            else:
-                groupes_batiments_2.append(groupe_batiment)
+        
+        # Permet de raccourcir l'étape d'appariement de segments 
+        # Utile en urbain dense pour gagner du temps, mais pas suffisamment testé 
+        #groupes_batiments_2 = []
+        #print("Division des grands groupes de bâtiments")
+        #for groupe_batiment in tqdm(self.groupe_batiments):
+        #    batiments = groupe_batiment.get_batiments()
+        #    if len(batiments)>30:
+        #        for batiment in batiments:
+        #            batiment.init()
+        #        groupes_batiments_2+=self.appariement_2(groupe_batiment)
+        #    else:
+        #        groupes_batiments_2.append(groupe_batiment)
             
-        self.groupe_batiments = groupes_batiments_2
+        #self.groupe_batiments = groupes_batiments_2
 
         return self.groupe_batiments
     

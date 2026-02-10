@@ -129,7 +129,7 @@ class SamonGouttiere:
                 if image in pvas:
                     shot = ShotOriente.createShot(cliche, self.raf, centre_rep_local, sensors)
                     emprise:Polygon = shot.emprise
-                    if emprise.intersects(self.emprise).any():
+                    if (self.emprise is not None and emprise.intersects(self.emprise).any()) or self.emprise is None:
                         shots.append(shot)
         return shots
     
