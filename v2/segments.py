@@ -8,30 +8,97 @@ class Segment:
 
     identifiant_global = 0
 
-    def __init__(self, geometrie_image:LineString, mnt:MNT, shot:Shot, batiment):
-        self.geometrie_image:LineString = geometrie_image
+    def __init__(self, mnt, batiment):
         self.mnt:MNT = mnt
-        self.shot:Shot = shot
         self.batiment = batiment
         self.identifiant:int = Segment.identifiant_global
         Segment.identifiant_global += 1
-
-        self.geometrie_terrain:LineString = None
-        self.world_line:np.array = None
-
+        self.world_line:np.ndarray = None
         self.segments_homologues_1:List[Segment] = [] # Liste des segments homologues
         self.segments_homologues_2:List[Segment] = [] # Liste des segments homologues
-
         self._marque = False
+        self.geometrie_terrain:LineString = None
         self.groupe_segments = None
-
         self.voisin_1:Segment = None
         self.voisin_2:Segment = None
+    
+    
+    def get_longueur(self):
+        return np.sqrt(np.sum((self.world_line[0,:]-self.world_line[1,:])**2))
 
+
+    def u_directeur_world(self):
+        u = self.world_line[0,:2] - self.world_line[1,:2]
+        return u / np.linalg.norm(u)
+    
+    def barycentre_world(self):
+        return (self.world_line[0,:2] + self.world_line[1,:2]) / 2
+    
+
+    def add_homologue_1(self, segment:Segment)->None:
+        if segment not in self.segments_homologues_1:
+            self.segments_homologues_1.append(segment)
+
+
+    def add_homologue_2(self, segment:Segment)->None:
+        if segment not in self.segments_homologues_2:
+            self.segments_homologues_2.append(segment)
+
+    def P0_sol(self):
+        return Point(self.world_line[0,0], self.world_line[0, 1])
+
+    def P1_sol(self):
+        return Point(self.world_line[1,0], self.world_line[1, 1])
+    
+
+    def get_image(self)->str:
+        return self.batiment.get_image()
+    
+
+    def get_geometrie_terrain(self)->LineString:
+        return self.geometrie_terrain
+    
+    def get_identifiant(self)->int:
+        return self.identifiant
+    
+    def get_identifiant_groupe(self)->int:
+        if self.groupe_segments is not None:
+            return self.groupe_segments.get_identifiant()
+        return -1
+    
+    def get_groupe_segments(self):
+        return self.groupe_segments
+    
+    def get_voisin_1(self)->Segment:
+        return self.voisin_1
+    
+    def get_voisin_2(self)->Segment:
+        return self.voisin_2
+    
+    def get_identifiant_batiment(self)->int:
+        return self.batiment.get_groupe_batiment_id()
+
+
+
+
+class SegmentBDTopo(Segment):
+
+    def __init__(self, geometrie_terrain:LineString, mnt, batiment):
+        super().__init__(mnt, batiment)
+        self.geometrie_terrain:LineString = geometrie_terrain
+
+        self.world_line = np.array(geometrie_terrain.coords)
+
+
+
+class SegmentImageOrientee(Segment):
+
+    def __init__(self, geometrie_image:LineString, mnt:MNT, shot:Shot, batiment):
+        super().__init__(mnt, batiment)
+        self.geometrie_image:LineString = geometrie_image
+        self.shot:Shot = shot
         self.param_plan:np.array = None #Paramètres du plan passant par le sommet de prise de vue et le segment
-
         self.estim_z_bati_ferme = None # Approximation de l'altitude du segment. A n'utiliser que dans la deuxième tentative pour fermer les bâtiments
-
         self.compute_ground_geometry()
 
     def get_estim_z(self)->float:
@@ -97,57 +164,10 @@ class Segment:
         self.geometrie_terrain = LineString(ground_points)
         self.world_line = np.array([[x[0], y[0], z[0]], [x[1], y[1], z[1]]])
 
-
-
-    def u_directeur_world(self):
-        u = self.world_line[0,:2] - self.world_line[1,:2]
-        return u / np.linalg.norm(u)
     
-    def barycentre_world(self):
-        return (self.world_line[0,:2] + self.world_line[1,:2]) / 2
     
-    def add_homologue_1(self, segment:Segment)->None:
-        if segment not in self.segments_homologues_1:
-            self.segments_homologues_1.append(segment)
-
-    def add_homologue_2(self, segment:Segment)->None:
-        if segment not in self.segments_homologues_2:
-            self.segments_homologues_2.append(segment)
-
-    def get_image(self)->str:
-        return self.batiment.get_image()
     
-    def get_longueur(self):
-        return np.sqrt(np.sum((self.world_line[0,:]-self.world_line[1,:])**2))
     
-    def P0_sol(self):
-        return Point(self.world_line[0,0], self.world_line[0, 1])
-
-    def P1_sol(self):
-        return Point(self.world_line[1,0], self.world_line[1, 1])
-    
-    def get_geometrie_terrain(self)->LineString:
-        return self.geometrie_terrain
-    
-    def get_identifiant(self)->int:
-        return self.identifiant
-    
-    def get_identifiant_groupe(self)->int:
-        if self.groupe_segments is not None:
-            return self.groupe_segments.get_identifiant()
-        return -1
-    
-    def get_groupe_segments(self):
-        return self.groupe_segments
-    
-    def get_identifiant_batiment(self)->int:
-        return self.batiment.get_groupe_batiment_id()
-    
-    def get_voisin_1(self)->Segment:
-        return self.voisin_1
-    
-    def get_voisin_2(self)->Segment:
-        return self.voisin_2
     
 
     def get_sommet_prise_de_vue(self)->np.array:

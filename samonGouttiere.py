@@ -1,7 +1,7 @@
 import argparse
 import os
 from v2.shot import MNT, RAF, Shot, Calibration, ShotPompei, ShotOriente
-from v2.prediction import Prediction
+from v2.prediction import Prediction, PredictionBDTOPO, PredictionImageorientee
 from typing import List
 from lxml import etree
 from v2.association_batiment_engine import AssociationBatimentEngine
@@ -16,11 +16,12 @@ from shapely import Polygon
 from tqdm import tqdm
 import time
 import warnings
+from pathlib import Path
 warnings.filterwarnings("ignore", message="'crs' was not provided")
 
 class SamonGouttiere:
 
-    def __init__(self, path_chantier:str, path_output:str, path_emprise:str, pompei:bool):
+    def __init__(self, path_chantier:str, path_output:str, path_emprise:str, pompei:bool, path_bd_topo):
         
         # Chemin où se trouve le chantier
         if not os.path.isdir(path_chantier):
@@ -28,6 +29,11 @@ class SamonGouttiere:
         self.path_chantier = path_chantier
         self.path_output = path_output
         os.makedirs(os.path.join(self.path_output, "gouttieres"), exist_ok=True)
+        if os.path.isfile(path_bd_topo):
+            self.path_bd_topo = Path(path_bd_topo)
+        else:
+            self.path_bd_topo = None
+            print("Pas de BD Topo utilisée")
 
         self.mnt:MNT = None
         self.raf:RAF = None
@@ -202,8 +208,11 @@ class SamonGouttiere:
         for prediction_ffl in tqdm(predictions_ffl):
             for shot in self.shots:
                 if shot.image+".shp" == prediction_ffl or shot.image+".gpkg" == prediction_ffl:
-                    predictions.append(Prediction(shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt))
+                    predictions.append(PredictionImageorientee(shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt))
         self.predictions = predictions
+
+        if self.path_bd_topo is not None:
+            self.predictions.append(PredictionBDTOPO(self.path_bd_topo, self.mnt, self.emprise))
 
         self.monoscopie = Monoscopie(self.get_pva_path(), self.mnt, self.raf, self.shots)
 
@@ -347,7 +356,8 @@ if __name__=="__main__":
     parser.add_argument('--output', help='Répertoire où enregistrer les résultats')
     parser.add_argument('--emprise', help='Emprise au sol des zones où il faut reconstruire les bâtiments', default=None)
     parser.add_argument('--pompei', help='True si le chantier a été produit avec Pompei', default=False, type=bool)
+    parser.add_argument('--bd_topo', help='Utilise les emprises de la BD TOPO', default=None, type=str)
     args = parser.parse_args()
 
-    samonGouttiere =  SamonGouttiere(args.input, args.output, args.emprise, args.pompei)
+    samonGouttiere =  SamonGouttiere(args.input, args.output, args.emprise, args.pompei, args.bd_topo)
     samonGouttiere.run()

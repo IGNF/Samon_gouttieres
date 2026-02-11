@@ -5,30 +5,191 @@ from typing import List, Tuple
 from v2.shot import Shot, MNT
 from numpy import linalg as LA
 from shapely.validation import make_valid
-from v2.segments import Segment
+from v2.segments import Segment, SegmentBDTopo, SegmentImageOrientee
+from abc import abstractmethod
 
 class Batiment:
 
     identifiant_global = 0
+    
+
+    def __init__(self, mnt):
+        Batiment.identifiant_global += 1
+        self.identifiant:int = Batiment.identifiant_global
+        self.geometrie_terrain:Polygon = None # Géométrie du bâtiment projetée sur le mnt
+        self.mnt:MNT = mnt
+        self._marque = False
+        self.valide:bool = True # Indique si le bâtiment est utilisable
+        self.batiments_homologues:List[Batiment] = [] # Liste des bâtiments issus d'autres images mais représentant le même bâtiment
+        self.groupe_batiment = None # Groupe de bâtiment auquel appartient ce bâtiment
+        self.segments:List[Segment] = [] # Liste des segments constituants le bâtiment
+        self.voisin_1:Segment = None
+        self.voisin_2:Segment = None
+
+    def get_geometrie_terrain(self)->Polygon:
+        return self.geometrie_terrain
+    
+
+    def get_identifiant(self)->int:
+        return self.identifiant
+    
+    def is_valid(self)->bool:
+        return self.valide
+    
+    def add_homologue(self, batiment:Batiment)->None:
+        if batiment not in self.batiments_homologues:
+            self.batiments_homologues.append(batiment)
+
+    def get_homologues(self)->List[Batiment]:
+        return self.batiments_homologues
+    
+    @abstractmethod
+    def update_ground_geometry(self, estim_z):
+        pass
+
+    @abstractmethod
+    def create_segments(self)->None:
+        pass
+
+    def get_segments(self)->List[Segment]:
+        return self.segments
+    
+    def get_segments_orientes(self)->List[SegmentImageOrientee]:
+        return [s for s in self.segments if isinstance(s, SegmentImageOrientee)]
+
+    def set_voisins(self):
+        segments = self.get_segments()
+        for i in range(1, len(segments)-1):
+            g1 = segments[i]
+            g0 = segments[i-1]
+            g2 = segments[i+1]
+            g1.voisin_1 = g0
+            g1.voisin_2 = g2
+            g0.voisin_2 = g1
+            g2.voisin_1 = g1
+        segments[0].voisin_1 = segments[-1]
+        segments[-1].voisin_2 = segments[0]
+
+
+    def create_numpy_array(self, dx:float=0, dy:float=0):
+
+        nb_segments = len(self.segments)
+
+        
+        # Dans un premier tableau numpy, on met les coordonnées des extrémités des goutières en coordonnées du monde
+        array = np.zeros((nb_segments, 4))
+        for i, segment in enumerate(self.segments):
+            world_line = segment.world_line
+            array[i,:] = np.array([world_line[0,0]+dx, world_line[0,1]+dy, world_line[1,0]+dx, world_line[1,1]+dy])
+            
+        # On calcule le vecteur directeur normalisé des goutières (en 2d)
+        dx = (array[:,2]-array[:,0])
+        dy = (array[:,3]-array[:,1])
+        u = np.concatenate((dx.reshape((-1, 1)), dy.reshape((-1, 1))), axis=1)
+        norm = np.linalg.norm(u, axis=1)
+        u = u / np.tile(norm.reshape((-1, 1)), (1, 2))
+        
+        # On calcule le barycentre de la goutière (en 2d)
+        barycentre_x = (array[:,2]+array[:,0])/2
+        barycentre_y = (array[:,3]+array[:,1])/2
+        barycentre = np.concatenate((barycentre_x.reshape((-1, 1)), barycentre_y.reshape((-1, 1))), axis=1)
+        
+        # On calcule les paramètres de la droite de la goutière (en 2d)
+        a = dy
+        b = -dx
+        c = dx * array[:,1] - dy * array[:,0]
+        racine = np.sqrt(a**2 + b**2)
+        equation_droite = np.concatenate((a.reshape((-1, 1)), b.reshape((-1, 1)), c.reshape((-1, 1)), racine.reshape((-1, 1))), axis=1)
+        
+        # On calcule la moitié de la longueur de la goutière
+        d_max = 0.5 * np.sqrt(dx**2+dy**2)
+        
+        # On réunit tous les tableaux dans un dictionnaire
+        self.array = array
+        self.u = u
+        self.barycentre = barycentre
+        self.equation_droite = equation_droite
+        self.d_max = d_max
+
+    @abstractmethod
+    def get_image(self)->str:
+        pass
+
+    def compute_iou(self, batiment_2:Batiment)->float:
+        footprint_1 = self.get_geometrie_terrain()
+        footprint_2 = batiment_2.get_geometrie_terrain()
+        intersection_area = intersection(footprint_1, footprint_2).area
+        union_area = union(footprint_1, footprint_2).area
+        return intersection_area / union_area
+    
+    def get_segment_i(self, i:int)->Segment:
+        return self.segments[i]
+
+
+    def get_groupe_batiment_id(self)->int:
+        """
+        Renvoie l'identifiant du groupe de bâtiments
+        """
+        if self.groupe_batiment is not None:
+            return self.groupe_batiment.identifiant
+        raise ValueError(f"Le bâtiment {self.identifiant} n'est associé à aucun groupe de bâtiment")
+    
+    def get_z_mean(self)->float:
+        if self.groupe_batiment is not None:
+            return self.groupe_batiment.estim_z
+        raise ValueError(f"Le bâtiment {self.identifiant} n'est associé à aucun groupe de bâtiment")
+
+class BatimentBDTopo(Batiment):
+
+    def __init__(self, geometrie, mnt:MNT):
+        super().__init__(mnt)
+        self.geometrie_terrain:Polygon = geometrie
+
+
+    def update_ground_geometry(self, estim_z):
+        poly = self.geometrie_terrain
+
+        # Anneau extérieur
+        exterior_coords = [
+            (x, y, estim_z) for x, y, *_ in poly.exterior.coords
+        ]
+
+        # Trous éventuels
+        interiors_coords = [
+            [(x, y, estim_z) for x, y, *_ in ring.coords]
+            for ring in poly.interiors
+        ]
+
+        self.geometrie_terrain = Polygon(exterior_coords, interiors_coords)
+
+
+    def create_segments(self)->None:
+        x, y = self.geometrie_terrain.exterior.xy
+        segments:List[LineString] = []
+        for i in range(len(x)-1):
+            linestring = LineString([[x[i], y[i]], [x[i+1], y[i+1]]])
+            segments.append(SegmentBDTopo(linestring, self.mnt, self))
+        self.segments = segments
+        self.set_voisins()
+
+    def get_image(self)->str:
+        return "BD_Topo"
+    
+
+
+
+class BatimentImageOrientee(Batiment):
+
+    
     seuil_ps = 0.99
 
     def __init__(self, geometrie:Polygon, shot:Shot, mnt:MNT):
+        super().__init__(mnt)
         self.geometrie_image:Polygon = geometrie
-        self.identifiant:int = Batiment.identifiant_global
+        
         self.shot:Shot = shot
-        self.mnt:MNT = mnt
-        Batiment.identifiant_global += 1
-
-        self.valide:bool = True # Indique si le bâtiment est utilisable
-        self.geometrie_terrain:Polygon = None # Géométrie du bâtiment projetée sur le mnt
-
-        self.batiments_homologues:List[Batiment] = [] # Liste des bâtiments issus d'autres images mais représentant le même bâtiment
-
-        self.segments:List[Segment] = [] # Liste des segments constituants le bâtiment
-
-
-        self._marque = False
-        self.groupe_batiment = None # Groupe de bâtiment auquel appartient ce bâtiment
+        
+        
 
         # tableau numpy contenant les informations relatives aux segments
         self.array:np.ndarray = None
@@ -57,6 +218,9 @@ class Batiment:
         l = np.array(l)
         du = self.shot.image_to_bundle(c, l)
         return du
+    
+    def update_ground_geometry(self, estim_z):
+        self.compute_ground_geometry(estim_z=estim_z)
     
     def lisser_geometries(self):
         """
@@ -94,7 +258,7 @@ class Batiment:
             ps = np.sum(u1*u2)
             
             # Si le prduit scalaire est supérieur au seuil, alors on fusionne les deux segments car ils sont presque alignés
-            if ps > Batiment.seuil_ps:
+            if ps > BatimentImageOrientee.seuil_ps:
                 x1 = x2
                 y1 = y2
             else:
@@ -121,7 +285,7 @@ class Batiment:
             u2 = np.array([[x2-x1], [y2-y1]])
             u2 = u2 / np.linalg.norm(u2)
             ps = np.sum(u1*u2)
-            if ps > Batiment.seuil_ps:
+            if ps > BatimentImageOrientee.seuil_ps:
                 del(liste_segments_poly[0])
                 linestring = LineString([[x0, y0], [x2, y2]])
                 liste_segments_poly.append(linestring)
@@ -137,17 +301,10 @@ class Batiment:
         return True
 
 
-    def is_valid(self)->bool:
-        return self.valide
+
     
     def get_image_geometrie(self)->Polygon:
         return self.geometrie_image
-    
-    def get_geometrie_terrain(self)->Polygon:
-        return self.geometrie_terrain
-
-    def get_identifiant(self)->int:
-        return self.identifiant
     
     def linestrings_to_polygon(self, linestrings:List[LineString])->Polygon:
         points:List[Point] = []
@@ -185,14 +342,8 @@ class Batiment:
             else:
                 geometrie_terrain = valid_geometry
         self.geometrie_terrain = geometrie_terrain
-        
 
-    def add_homologue(self, batiment:Batiment)->None:
-        if batiment not in self.batiments_homologues:
-            self.batiments_homologues.append(batiment)
-
-    def get_homologues(self)->List[Batiment]:
-        return self.batiments_homologues
+    
     
     def init(self):
         self.batiments_homologues = []
@@ -360,32 +511,12 @@ class Batiment:
         return abs(nb_sommets_b1-nb_sommets_b2) + (ratio_surface-1) + abs(estim_z["dist"])
     
 
-    def get_groupe_batiment_id(self)->int:
-        """
-        Renvoie l'identifiant du groupe de bâtiments
-        """
-        if self.groupe_batiment is not None:
-            return self.groupe_batiment.identifiant
-        raise ValueError(f"Le bâtiment {self.identifiant} n'est associé à aucun groupe de bâtiment")
+
         
-    def get_z_mean(self)->float:
-        if self.groupe_batiment is not None:
-            return self.groupe_batiment.estim_z
-        raise ValueError(f"Le bâtiment {self.identifiant} n'est associé à aucun groupe de bâtiment")
+
     
 
-    def set_voisins(self):
-        segments = self.get_segments()
-        for i in range(1, len(segments)-1):
-            g1 = segments[i]
-            g0 = segments[i-1]
-            g2 = segments[i+1]
-            g1.voisin_1 = g0
-            g1.voisin_2 = g2
-            g0.voisin_2 = g1
-            g2.voisin_1 = g1
-        segments[0].voisin_1 = segments[-1]
-        segments[-1].voisin_2 = segments[0]
+
 
 
     def create_segments(self)->None:
@@ -393,7 +524,7 @@ class Batiment:
         segments:List[LineString] = []
         for i in range(len(x)-1):
             linestring = LineString([[x[i], y[i]], [x[i+1], y[i+1]]])
-            segments.append(Segment(linestring, self.mnt, self.shot, self))
+            segments.append(SegmentImageOrientee(linestring, self.mnt, self.shot, self))
         self.segments = segments
         self.set_voisins()
 
@@ -401,59 +532,10 @@ class Batiment:
     def get_image(self)->str:
         return self.shot.image
     
-    def compute_iou(self, batiment_2:Batiment)->float:
-        footprint_1 = self.get_geometrie_terrain()
-        footprint_2 = batiment_2.get_geometrie_terrain()
-        intersection_area = intersection(footprint_1, footprint_2).area
-        union_area = union(footprint_1, footprint_2).area
-        return intersection_area / union_area
     
-    def get_segments(self)->List[Segment]:
-        return self.segments
     
 
-    def create_numpy_array(self, dx:float=0, dy:float=0):
 
-        nb_segments = len(self.segments)
-
-        
-        # Dans un premier tableau numpy, on met les coordonnées des extrémités des goutières en coordonnées du monde
-        array = np.zeros((nb_segments, 4))
-        for i, segment in enumerate(self.segments):
-            world_line = segment.world_line
-            array[i,:] = np.array([world_line[0,0]+dx, world_line[0,1]+dy, world_line[1,0]+dx, world_line[1,1]+dy])
-            
-        # On calcule le vecteur directeur normalisé des goutières (en 2d)
-        dx = (array[:,2]-array[:,0])
-        dy = (array[:,3]-array[:,1])
-        u = np.concatenate((dx.reshape((-1, 1)), dy.reshape((-1, 1))), axis=1)
-        norm = np.linalg.norm(u, axis=1)
-        u = u / np.tile(norm.reshape((-1, 1)), (1, 2))
-        
-        # On calcule le barycentre de la goutière (en 2d)
-        barycentre_x = (array[:,2]+array[:,0])/2
-        barycentre_y = (array[:,3]+array[:,1])/2
-        barycentre = np.concatenate((barycentre_x.reshape((-1, 1)), barycentre_y.reshape((-1, 1))), axis=1)
-        
-        # On calcule les paramètres de la droite de la goutière (en 2d)
-        a = dy
-        b = -dx
-        c = dx * array[:,1] - dy * array[:,0]
-        racine = np.sqrt(a**2 + b**2)
-        equation_droite = np.concatenate((a.reshape((-1, 1)), b.reshape((-1, 1)), c.reshape((-1, 1)), racine.reshape((-1, 1))), axis=1)
-        
-        # On calcule la moitié de la longueur de la goutière
-        d_max = 0.5 * np.sqrt(dx**2+dy**2)
-        
-        # On réunit tous les tableaux dans un dictionnaire
-        self.array = array
-        self.u = u
-        self.barycentre = barycentre
-        self.equation_droite = equation_droite
-        self.d_max = d_max
-
-    def get_segment_i(self, i:int)->Segment:
-        return self.segments[i]
     
     def distance_sommet(self, point:Point):
         sommet = self.shot.get_sommet()

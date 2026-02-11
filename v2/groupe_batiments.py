@@ -1,4 +1,4 @@
-from v2.batiment import Batiment
+from v2.batiment import Batiment, BatimentImageOrientee
 from typing import List, Tuple
 from v2.groupe_segments import GroupeSegments
 from v2.segments import Segment
@@ -19,12 +19,13 @@ class GroupeBatiments:
 
     def __init__(self, batiments:List[Batiment]):
         self.batiments = batiments
+        self.batimentsImageOrientee = [b for b in self.batiments if isinstance(b, BatimentImageOrientee)]
 
         self.identifiant:int = GroupeBatiments.identifiant_global
         GroupeBatiments.identifiant_global += 1
 
 
-        self.estim_z:float=None
+        self.estim_z:float|None=None
 
         # A chaque bâtiment, on complète l'attribut qui indique à quel groupe de bâtiment il appartient
         for batiment in self.batiments:
@@ -61,11 +62,11 @@ class GroupeBatiments:
     def compute_z_mean(self):
         estim_z_sum = 0
         compte = 0
-        i_max = min(100, len(self.batiments)) # Pour certains groupes, on peut avoir 2000 bâtiments, ce qui est très long à traiter... 
+        i_max = min(100, len(self.batimentsImageOrientee)) # Pour certains groupes, on peut avoir 2000 bâtiments, ce qui est très long à traiter... 
         for i1 in range(i_max):
             for i2 in range(i1+1, i_max):
-                b1 = self.batiments[i1]
-                b2 = self.batiments[i2]
+                b1 = self.batimentsImageOrientee[i1]
+                b2 = self.batimentsImageOrientee[i2]
                 if b1.shot.image != b2.shot.image:
                     score = b1.correlation_score(b2)
                     if score < 0.2:
@@ -79,24 +80,24 @@ class GroupeBatiments:
                 estim_z_final = None
         if estim_z_final is None:
             return None
-        centroid = self.batiments[0].geometrie_terrain.centroid
-        z = self.batiments[0].mnt.get(centroid.x, centroid.y)
+        centroid = self.batimentsImageOrientee[0].geometrie_terrain.centroid
+        z = self.batimentsImageOrientee[0].mnt.get(centroid.x, centroid.y)
         return estim_z_final + z
 
 
     def compute_z_mean_v2(self)->Tuple[float, int]:
-        i_max = min(100, len(self.batiments)) # Pour certains groupes, on peut avoir 2000 bâtiments, ce qui est très long à traiter... 
+        i_max = min(100, len(self.batimentsImageOrientee)) # Pour certains groupes, on peut avoir 2000 bâtiments, ce qui est très long à traiter... 
         distances = []
         z_mean = []
 
-        centroid = self.batiments[0].geometrie_terrain.centroid
-        z = self.batiments[0].mnt.get(centroid.x, centroid.y)
+        centroid = self.batimentsImageOrientee[0].geometrie_terrain.centroid
+        z = self.batimentsImageOrientee[0].mnt.get(centroid.x, centroid.y)
 
         # Pour chaque couple de bâtiments
         for i1 in range(i_max):
             for i2 in range(i1+1, i_max):
-                b1 = self.batiments[i1]
-                b2 = self.batiments[i2]
+                b1 = self.batimentsImageOrientee[i1]
+                b2 = self.batimentsImageOrientee[i2]
                 # Si les deux bâtiments n'appartiennent pas au même couple
                 if b1.shot.image != b2.shot.image:
                     # On calcule l'estimation de hauteur pour chaque couple de bâtiments
@@ -108,8 +109,8 @@ class GroupeBatiments:
         sum = 0
         weight = 0
         
-        centroid = self.batiments[0].geometrie_terrain.centroid
-        z = self.batiments[0].mnt.get(centroid.x, centroid.y)
+        centroid = self.batimentsImageOrientee[0].geometrie_terrain.centroid
+        z = self.batimentsImageOrientee[0].mnt.get(centroid.x, centroid.y)
 
         if len(distances)==0:
             return z+10, 0
@@ -131,7 +132,7 @@ class GroupeBatiments:
         Renvoie le nombre de pva sur lesquelles se trouvent le bâtiment
         """
         shots = []
-        for batiment in self.get_batiments():
+        for batiment in self.get_batiments_images_orientees():
             shot = batiment.shot
             if shot not in shots:
                 shots.append(shot)
@@ -140,7 +141,7 @@ class GroupeBatiments:
 
     def update_geometry_terrain(self):
         for batiment in self.batiments:
-            batiment.compute_ground_geometry(estim_z=self.estim_z)
+            batiment.update_ground_geometry(self.estim_z)
 
     def get_identifiant(self)->int:
         return self.identifiant
@@ -153,6 +154,9 @@ class GroupeBatiments:
 
     def get_batiments(self)->List[Batiment]:
         return self.batiments
+    
+    def get_batiments_images_orientees(self)->List[BatimentImageOrientee]:
+        return self.batimentsImageOrientee
     
 
     def update_groupe_segments(self)->None:
@@ -277,7 +281,7 @@ class GroupeBatiments:
         Récupère les points avec lesquels on pourrait obtenir une évaluation de la hauteur du bâtiment avec samon
         """
         dictionnaires = []
-        for batiment in self.get_batiments():
+        for batiment in self.get_batiments_images_orientees():
             dict_batiment = batiment.get_points_samon() 
             if dict_batiment is not None:
                 dictionnaires += batiment.get_points_samon()   
@@ -294,21 +298,23 @@ class GroupeBatiments:
         return shots
     
 
-    def get_batiment_nearest_nadir(self)->Batiment:
+    def get_batiment_nearest_nadir(self)->BatimentImageOrientee:
+        if len(self.batimentsImageOrientee)==0:
+            return None
         batiment_min = None
         distance_min = 1e15
 
         x = []
         y = []
         # On récupère le barycentre des barycentre des batiments projetés
-        for batiment in self.batiments:
+        for batiment in self.batimentsImageOrientee:
             if batiment.geometrie_terrain is not None:
                 barycentre = batiment.geometrie_terrain.centroid
                 x.append(barycentre.x)
                 y.append(barycentre.y)
         centre = Point(statistics.mean(x), statistics.mean(y))
 
-        for batiment in self.batiments:
+        for batiment in self.batimentsImageOrientee:
             # On calcule la distance entre le barycentre des barycentres et le sommet de prise de vue, en plani
             distance = batiment.distance_sommet(centre)
             # On conserve le bâtiment pour lequel la distance est minimale
@@ -329,6 +335,8 @@ class GroupeBatiments:
         """
         La géométrie fermée est considérée comme valide si elle n'est pas vide et que sa surface est assez proche de celles des projections au sol des bâtiments
         """
+        if self.get_geometrie_fermee() is None:
+            return False
         # Si la géométrie fermée est vide, on renvoie faux
         if len(self.get_geometrie_fermee().geoms)==0:
             return False
@@ -352,7 +360,7 @@ class GroupeBatiments:
         Renvoie tous les bâtiments du groupe issus de la même pva
         """
         batiments = []
-        for b in self.batiments:
+        for b in self.batimentsImageOrientee:
             if b.shot==bati.shot:
                 batiments.append(b)
         return batiments

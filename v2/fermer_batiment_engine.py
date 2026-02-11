@@ -1,7 +1,7 @@
 from typing import List
 from v2.groupe_batiments import GroupeBatiments, id_debug
 from tqdm import tqdm
-from v2.segments import Segment
+from v2.segments import SegmentImageOrientee
 from shapely import Polygon, GeometryCollection, LineString, make_valid, MultiPolygon
 from shapely.ops import polygonize_full
 from shapely.geometry.base import BaseGeometry
@@ -22,6 +22,12 @@ class FermerBatimentEngine:
 
         # On récupère le bâtiment qui est le plus proche du nadir et le plus grand en surface
         batiment_principal = groupe_batiment.get_batiment_nearest_nadir()
+
+        # Cas où il n'y a que de la BD Topo dans le groupe
+        if batiment_principal is None:
+            return
+        
+
         if groupe_batiment.get_identifiant()==id_debug:
             print("batiment_principal : ", batiment_principal.shot.image, batiment_principal.identifiant)
 
@@ -32,11 +38,11 @@ class FermerBatimentEngine:
         # Pour chaque bâtiment, on va récupérer sa géométrie terrain et l'ajouter à polygones
         for batiment_principal in batiments_principaux:
 
-            segments:List[Segment] = []
+            segments:List[SegmentImageOrientee] = []
 
             # On calcule l'altitude moyenne des segments. Cela servira à fixer une altitude aux segments dont le calcul d'intersection de plans a échoué
             altitudes_moyennes = []
-            for segment in batiment_principal.get_segments():
+            for segment in batiment_principal.get_segments_orientes():
                 groupe_segment = groupe_batiment.get_groupe_segments_one_segment(segment)
                 if groupe_segment is not None and groupe_segment.is_valid():
                     altitude_moyenne = groupe_segment.altitude_moyenne()
@@ -51,7 +57,7 @@ class FermerBatimentEngine:
             # On utilise en priorité l'altitude moyenne du résultat de l'intersection de plans
             # Puis l'altitude de ses voisins
             # Et sinon l'altitude moyenne du bâtiment
-            for segment in batiment_principal.get_segments():
+            for segment in batiment_principal.get_segments_orientes():
                 segment.compute_ground_geometry_fermer_bati_2(altitude_moyenne_bati)
                 segments.append(segment)
             

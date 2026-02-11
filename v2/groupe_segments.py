@@ -1,6 +1,6 @@
 from __future__ import annotations
-from v2.segments import Segment
-from typing import List, Dict, Tuple
+from v2.segments import Segment, SegmentImageOrientee
+from typing import List, Dict
 import numpy as np
 from shapely import LineString, Point
 
@@ -11,6 +11,7 @@ class GroupeSegments:
 
     def __init__(self, segments:List[Segment]):
         self.segments = segments
+        self.segment_images_orientees = [s for s in self.segments if isinstance(s, SegmentImageOrientee)]
         self.identifiant:int = GroupeSegments.identifiant_global
         GroupeSegments.identifiant_global += 1
 
@@ -83,7 +84,7 @@ class GroupeSegments:
     
 
     def compute_equations_plans(self)->None:
-        for segment in self.segments:
+        for segment in self.segment_images_orientees:
             segment.compute_equation_plan()
 
 
@@ -98,11 +99,11 @@ class GroupeSegments:
         Si toutes les distances sont inférieures à 200 mètres, alors on ne calcule pas et on utilisera la projection sur les autres segments
         """
         distance_max = 0
-        if len(self.segments)>1:
-            segment_0 = self.segments[0]
+        if len(self.segment_images_orientees)>1:
+            segment_0 = self.segment_images_orientees[0]
             distance_max = 0
-            for i_s in range(1, len(self.segments)):
-                segment = self.segments[i_s]
+            for i_s in range(1, len(self.segment_images_orientees)):
+                segment = self.segment_images_orientees[i_s]
                 sommet = segment.get_sommet_prise_de_vue_shapely()
                 distance_max = max(distance_max, segment_0.distance_point_plan(sommet))
             if distance_max < 200:
@@ -113,10 +114,10 @@ class GroupeSegments:
         Renvoie le barycentre des extrémités des segments projetées sur MNT dans le repère du monde
         """
         somme = 0
-        for segment in self.segments:
+        for segment in self.segment_images_orientees:
             somme += segment.world_line[0,0]
             somme += segment.world_line[1,0]
-        return somme / (len(self.segments)*2)
+        return somme / (len(self.segment_images_orientees)*2)
     
 
     def build_A_B(self):
@@ -143,7 +144,7 @@ class GroupeSegments:
 
 
 
-        n = len(self.segments)
+        n = len(self.segment_images_orientees)
 
         A = np.zeros((3*n+1, 4))
         B = np.zeros((3*n+1, 1))
@@ -154,8 +155,8 @@ class GroupeSegments:
         lambda1 = 1e5
         lambda2 = -1e5
 
-        for i in range(len(self.segments)):
-            segment = self.segments[i]
+        for i in range(len(self.segment_images_orientees)):
+            segment = self.segment_images_orientees[i]
             param = segment.param_plan
             A[3*i,:] = np.array([param[0,1], 0, param[0,2], 0])
             A[3*i+1,:] = np.array([param[0,1], lambda1*param[0,1], param[0,2], lambda1*param[0,2]])
@@ -176,7 +177,7 @@ class GroupeSegments:
 
     def moindres_carres(self)->None:
         segment_supprime = True
-        while segment_supprime and len(self.segments) > 1:
+        while segment_supprime and len(self.segment_images_orientees) > 1:
             segment_supprime = False
 
             # On construit les matrices pour les moindres carrés
@@ -188,7 +189,7 @@ class GroupeSegments:
             try:
                 x_chap = np.linalg.inv(N) @ K
             except:
-                self.segments = []
+                self.segment_images_orientees = []
                 continue
 
             #Distance au plan
@@ -209,13 +210,13 @@ class GroupeSegments:
 
             V_norm_max = np.max(V_norm)
             V_norm_argmax = np.argmax(V_norm)
-            residu_moyen = np.sqrt(V.T @ V) / len(self.segments)
+            residu_moyen = np.sqrt(V.T @ V) / len(self.segment_images_orientees)
             if V_norm_max > 2:
-                segment_faux = self.segments[V_norm_argmax//3]
-                self.segments.remove(segment_faux)
+                segment_faux = self.segment_images_orientees[V_norm_argmax//3]
+                self.segment_images_orientees.remove(segment_faux)
                 segment_supprime = True
             elif np.isnan(V_norm_max):
-                self.segments = []
+                self.segment_images_orientees = []
 
                 
         self.X0 = X0
@@ -239,12 +240,12 @@ class GroupeSegments:
         points2 = []
         somme_distance = 0
 
-        if len(self.segments)==0:
+        if len(self.segment_images_orientees)==0:
             self.longueur = 1e15
             return None
         
         # On parcourt toutes les pvas
-        for segment in self.segments:
+        for segment in self.segment_images_orientees:
             # On récupère les points les plus proches et les distances correspondantes entre la droite (sommet de prise de vue, extrémité 1 d'un segment sur pva) et la droite (goutiere)
             # et entre la droite (sommet de prise de vue, extrémité 2 d'un segment sur pva) et la droite (goutiere)
             
@@ -277,7 +278,7 @@ class GroupeSegments:
         # On prend les coordonnées des extrémités de la goutière la plus petite
         indice_max = 0
         distance_max = 0
-        for i, segment in enumerate(self.segments):
+        for i, segment in enumerate(self.segment_images_orientees):
             distance = segment.get_longueur()
             if distance > distance_max:
                 distance_max = distance
@@ -288,7 +289,7 @@ class GroupeSegments:
         self.p1 = Point(p1[0,0], p1[1,0], p1[2,0])
         self.p2 = Point(p2[0,0], p2[1,0], p2[2,0])
         self.geometry = LineString([self.p1, self.p2])
-        self.d_mean = somme_distance / (2*len(self.segments))
+        self.d_mean = somme_distance / (2*len(self.segment_images_orientees))
         
         u = p2 - p1
         self.longueur = np.linalg.norm(u)
@@ -307,7 +308,7 @@ class GroupeSegments:
         Mettre ici toutes les conditions pour lesquelles un résultat d'intersection soit accepté
         """
         # S'il n'y a pas assez de segments qui ont été utilisés pour le calcul
-        if len(self.segments)<2:
+        if len(self.segment_images_orientees)<2:
             self._supprime = True
         if self.longueur is None or self.longueur > 1000:
             self._supprime = True
@@ -344,7 +345,7 @@ class GroupeSegments:
     
 
     def is_valid(self)->bool:
-        return not self._supprime
+        return not self._supprime and len(self.segment_images_orientees)>1
     
     def add_groupe_voisin(self, voisin:GroupeSegments)->None:
         if voisin not in self.voisins:
