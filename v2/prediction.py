@@ -118,9 +118,11 @@ class PredictionBDTOPO(Prediction):
         gdf = gpd.read_file(self.path_predictions)
         gdf = gdf[gdf.within(emprise.unary_union)]
         batiments:List[BatimentBDTopo] = []
-        for geometry in gdf.geometry:
+        for i in range(gdf.shape[0]):
+            raw = gdf.iloc[i]
+            geometry = raw["geometry"]
             if isinstance(geometry, Polygon):
-                batiments.append(BatimentBDTopo(geometry, self.mnt))
+                batiments.append(BatimentBDTopo(geometry, self.mnt, raw["ACQU_PLANI"]))
         return batiments
     
     def lisser_geometries(self):

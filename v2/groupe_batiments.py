@@ -1,4 +1,4 @@
-from v2.batiment import Batiment, BatimentImageOrientee
+from v2.batiment import Batiment, BatimentImageOrientee, BatimentBDTopo
 from typing import List, Tuple
 from v2.groupe_segments import GroupeSegments
 from v2.segments import Segment
@@ -39,6 +39,8 @@ class GroupeBatiments:
 
         self.methode_fermeture = None
         self.methode_estimation_hauteur = None
+        self.geometrie_amelioree_bd_topo = None
+        self.origine_geometrie_amelioree_bd_topo = None
 
 
     def set_methode_fermeture(self, methode:str):
@@ -46,6 +48,16 @@ class GroupeBatiments:
         Méthode de fermeture des bâtiments : photogrammétrie ou projection d'un bâtiment
         """
         self.methode_fermeture = methode
+
+    def set_geometrie_amelioree_bd_topo(self, geometrie_amelioree_bd_topo:str, origine):
+        """
+        Méthode de fermeture des bâtiments : photogrammétrie ou projection d'un bâtiment
+        """
+        self.geometrie_amelioree_bd_topo = geometrie_amelioree_bd_topo
+        self.origine_geometrie_amelioree_bd_topo = origine
+
+    def get_geometrie_amelioree_bd_topo(self)->Polygon:
+        return self.geometrie_amelioree_bd_topo
 
     def get_methode_fermeture(self)->str:
         return self.methode_fermeture
@@ -58,6 +70,17 @@ class GroupeBatiments:
 
     def get_methode_estimation_hauteur(self)->str:
         return self.methode_estimation_hauteur
+    
+    def get_batiments_bd_topo(self):
+        batis = [b for b in self.batiments if isinstance(b, BatimentBDTopo)]
+        if len(batis)==0:
+            return None, None
+        acquisition_plani = "Photogrammétrie"
+        for b in batis:
+            if b.acquisition_plani != "Photogrammétrie":
+                acquisition_plani = "Divers"
+        batis_geometries = [b.geometrie_terrain for b in batis]
+        return MultiPolygon(batis_geometries), acquisition_plani
 
     def compute_z_mean(self):
         estim_z_sum = 0

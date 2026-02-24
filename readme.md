@@ -1,9 +1,11 @@
+<h1 align="center">
+  Reconstruction automatique de contours de toits en 3D à l’aide du Frame Field Learning 
+</h1>
+
+<h4 align="center">Implémentation officielle de  <a href="https://rfpt.sfpt.fr/index.php/RFPT/article/view/733">Reconstruction automatique de contours de toits en 3D à l’aide du Frame Field Learning</a></h4>
 
 
-# Retrouver les contours des toits des bâtiments en 3D
-
-Ce répertoire permet de reconstruire en 3D les contours de toit (script SamonGouttiere.py).
-Il a permis il fut un temps un temps de recaler les bâtiments de la BD Uni sur les contours de toit trouvés précédemment (script v1/run_recalage.py). Mais cette fonctionnalité n'a plus été maintenue.
+Ce répertoire permet de reconstruire en 3D les contours de toit à partir d'images orientées et sans Lidar.
 
 
 ![Alt text](Mont_Dauphin.png "Mont Dauphin")

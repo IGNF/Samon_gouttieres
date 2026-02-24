@@ -11,6 +11,7 @@ from v2.groupe_segments import GroupeSegments
 from v2.calcul_intersection_engine import CalculIntersectionEngine
 from v2.fermer_batiment_engine import FermerBatimentEngine
 from v2.samon.monoscopie import Monoscopie
+from v2.amelioration_bd_topo import AmeliorationBDTopoEngine
 import geopandas as gpd
 from shapely import Polygon
 from tqdm import tqdm
@@ -187,6 +188,7 @@ class SamonGouttiere:
         self.association_segments()
         self.calculer_intersections()
         self.fermer_batiment()
+        self.ameliorer_avec_bd_topo()
         print(f"Durée du traitement : {time.time() - tic} secondes")
 
 
@@ -286,6 +288,11 @@ class SamonGouttiere:
         self.export_batiments_fermes()
         self.export_intersections_ajustees()
 
+    def ameliorer_avec_bd_topo(self):
+        ameliorationBDTopoEngine = AmeliorationBDTopoEngine(self.groupe_batiments)
+        ameliorationBDTopoEngine.run()
+        self.export_batiments_ameliores_bd_topo()
+
     def export_batiments_fermes(self):
         geometries = []
         identifiant = []
@@ -320,6 +327,46 @@ class SamonGouttiere:
         gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
         gdf.to_file(os.path.join(self.path_output, "gouttieres", "batiments_fermes", "batiments_fermes.gpkg"))
 
+    def export_batiments_ameliores_bd_topo(self):
+        geometries = []
+        identifiant = []
+        methode = []
+        methode_estimation_alti = []
+        estimation_z = []
+        delta_estim = []
+        origine = []
+
+
+        for groupe_batiment in self.groupe_batiments:
+            geometrie = groupe_batiment.get_geometrie_amelioree_bd_topo()
+            if geometrie is None:
+                continue
+            for geom in geometrie.geoms:
+                geometries.append(geom)
+                identifiant.append(groupe_batiment.get_identifiant())
+                methode.append(groupe_batiment.get_methode_fermeture())
+                methode_estimation_alti.append(groupe_batiment.get_methode_estimation_hauteur())
+                estimation_z.append(groupe_batiment.estim_z)
+                origine.append(groupe_batiment.origine_geometrie_amelioree_bd_topo)
+
+                delta_z_list = []
+                for point in geom.exterior.coords:
+                    z = self.mnt.get(point[0], point[1])
+                    delta_z = point[2] - z
+                    delta_z_list.append(delta_z[0])
+                delta_z_mean = sum(delta_z_list)/len(delta_z_list)
+                if groupe_batiment.estim_z is not None:
+                    delta_estim.append(groupe_batiment.estim_z - delta_z_mean)
+                else:
+                    delta_estim.append(0)
+        d = {"id_bati":identifiant, "methode":methode, "estim_alti":methode_estimation_alti, "estim_z":estimation_z, "delta_estim":delta_estim, "origine":origine, "geometry":geometries}
+        
+        os.makedirs(os.path.join(self.path_output, "gouttieres", "batiments_fermes"), exist_ok=True)
+        gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
+        gdf.to_file(os.path.join(self.path_output, "gouttieres", "batiments_fermes", "batiments_fermes_amelioration_bd_topo.gpkg"))
+    
+    
+    
     def export_intersections_ajustees(self):
         geometries = []
         nb_segments = []

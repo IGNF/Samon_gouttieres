@@ -141,9 +141,10 @@ class Batiment:
 
 class BatimentBDTopo(Batiment):
 
-    def __init__(self, geometrie, mnt:MNT):
+    def __init__(self, geometrie, mnt:MNT, acquisition_plani:str):
         super().__init__(mnt)
         self.geometrie_terrain:Polygon = geometrie
+        self.acquisition_plani = acquisition_plani
 
 
     def update_ground_geometry(self, estim_z):

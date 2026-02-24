@@ -30,6 +30,8 @@ class OrthoLocale:
             self.pva_path = pva_path+".jpg"
         elif os.path.isfile(pva_path+".jp2"):
             self.pva_path = pva_path+".jp2"
+        else:
+            raise ValueError(f"Image not found : {self.pva_path}")
 
         self.pva = Pva(self.pva_path, path_save_pi)
         
