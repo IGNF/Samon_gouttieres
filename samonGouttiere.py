@@ -202,7 +202,7 @@ class SamonGouttiere:
         for prediction_ffl in tqdm(predictions_ffl):
             for shot in self.shots:
                 if shot.image+".shp" == prediction_ffl or shot.image+".gpkg" == prediction_ffl:
-                    predictions.append(Prediction(shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt))
+                    predictions.append(Prediction(shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt, self.emprise))
         self.predictions = predictions
 
         self.monoscopie = Monoscopie(self.get_pva_path(), self.mnt, self.raf, self.shots)

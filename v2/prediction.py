@@ -5,13 +5,14 @@ from typing import List
 from shapely import Polygon
 from tqdm import tqdm
 import os
+import numpy as np
 
 class Prediction:
     """
     Classe représentant une image avec ses prédictions 
     """
 
-    def __init__(self, shot:Shot, path_predictions:str, mnt:MNT):
+    def __init__(self, shot:Shot, path_predictions:str, mnt:MNT, emprise:gpd.GeoSeries):
         """
         shot : paramètres de l'acquisition de la photo
         path_predictions : chemin vers le fichier shapefile avec les prédictions
@@ -19,19 +20,42 @@ class Prediction:
         self.shot:Shot = shot
         self.path_predictions:str = path_predictions
         self.mnt:MNT = mnt
-        self.batiments:List[Batiment] = self.read_file()
+        self.batiments:List[Batiment] = self.read_file(emprise)
 
         self.gdf:gpd.GeoDataFrame = None
+
+    
+    def emprise_to_geom_image(self, emprise:gpd.GeoSeries):
+        xmin, ymin, xmax, ymax = emprise.total_bounds
+        polygon = Polygon.from_bounds(xmin, ymin, xmax, ymax)
+
+
+        x, y = polygon.exterior.coords.xy
+        x = np.array(x)
+        y = np.array(y)
+        z = self.mnt.get(x, y)
+
+        c, l = self.shot.world_to_image(x, y, z)
+
+        image_points = []
+        for i in range(c.shape[0]):
+            image_points.append([c[i], -l[i]])
+        emprise_image = Polygon(image_points) 
+        return emprise_image
+
         
 
-    def read_file(self) -> List[Batiment]:
+    def read_file(self, emprise) -> List[Batiment]:
         """
         Ouvre le fichier shapefile associé à la prédiction et crée un ensemble de bâtiments
         """
+
+        emprise_image = self.emprise_to_geom_image(emprise)
+
         gdf = gpd.read_file(self.path_predictions)
         batiments:List[Batiment] = []
         for geometry in gdf.geometry:
-            if isinstance(geometry, Polygon):
+            if isinstance(geometry, Polygon) and geometry.intersects(emprise_image):
                 batiments.append(Batiment(geometry, self.shot, self.mnt))
         return batiments
     

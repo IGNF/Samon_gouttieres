@@ -40,8 +40,11 @@ class AssociationSegmentsEngine:
             # Il faut au moins deux bâtiments dans le groupe de bâtiments
             if len(batiments) >= 2:
                 # on parcourt les paires de bâtiments
-                for bati_1 in batiments:
-                    for bati_2 in batiments:
+
+                for i in range(len(batiments)):
+                    bati_1 = batiments[i]
+                    for j in range(i+1, len(batiments)):
+                        bati_2 = batiments[j]
                         # Il faut que la projection au sol des deux bâtiments se recouvre suffisamment (IoU > 0.5)
                         if bati_1.get_image()!=bati_2.get_image() and bati_1.compute_iou(bati_2)>0.5:
                             
