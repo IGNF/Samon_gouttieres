@@ -6,6 +6,7 @@ from shapely import Polygon
 from tqdm import tqdm
 import os
 
+
 class Prediction:
     """
     Classe représentant une image avec ses prédictions 

@@ -16,6 +16,9 @@ from shapely import Polygon
 from tqdm import tqdm
 import time
 import warnings
+import pickle
+import dill
+from multiprocess.pool import Pool
 warnings.filterwarnings("ignore", message="'crs' was not provided")
 
 class SamonGouttiere:
@@ -207,8 +210,22 @@ class SamonGouttiere:
 
         self.monoscopie = Monoscopie(self.get_pva_path(), self.mnt, self.raf, self.shots)
 
+    def trouver_le_coupable(self, obj):
+        print(f"🔎 Analyse de l'objet : {obj}")
+        # On parcourt tous les attributs de l'objet
+        for attr_name in dir(obj):
+            # On ignore les méthodes magiques internes
+            if attr_name.startswith('__'): continue
+            
+            attr_value = getattr(obj, attr_name)
+            try:
+                pickle.dumps(attr_value)
+            except Exception as e:
+                print(f"❌ COUPABLE TROUVÉ : self.{attr_name}")
+                print(f"   Type : {type(attr_value)}")
+                print(f"   Erreur : {e}")
 
-    def lisser_geometries(self):
+    def lisser_geometries_save(self):
         """
         Lisse les géométries de chaque polygones
         """
@@ -218,6 +235,27 @@ class SamonGouttiere:
         for prediction in tqdm(self.predictions):
             prediction.lisser_geometries()
             prediction.export_geometry_image(os.path.join(self.path_output, "gouttieres", "nettoyage"))
+
+    def lisser_sauvegarder(self, prediction:Prediction, output):
+        prediction.lisser_geometries()
+        prediction.export_geometry_image(os.path.join(output, "gouttieres", "nettoyage"))
+        return prediction
+
+    def lisser_geometries(self):
+        """
+        Lisse les géométries de chaque polygones
+        """
+        
+        print("Lissage de la géométrie")
+        os.makedirs(os.path.join(self.path_output, "gouttieres", "nettoyage"), exist_ok=True)
+        items = self.predictions
+        output = self.path_output
+        with Pool(processes=4) as pool:
+            # starmap est pratique pour passer plusieurs arguments
+            self.predictions = list(tqdm(
+                pool.starmap(self.lisser_sauvegarder, [(p, output) for p in items]),
+                total=len(items)
+            ))
 
 
     def association_bati(self):
