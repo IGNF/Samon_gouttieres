@@ -7,6 +7,8 @@ import numpy as np
 from v2.samon.monoscopie import Monoscopie
 from v2.samon.infosResultats import InfosResultats
 from v2.shot import MNT
+from v2.parallelisation import compute_ground_geometrie
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 class AssociationBatimentEngine:
 
@@ -14,7 +16,7 @@ class AssociationBatimentEngine:
     Algorithme pour associer les bâtiments entre eux
     """
 
-    def __init__(self, predictions:List[Prediction], monoscopie:Monoscopie, emprise:gpd.GeoDataFrame, pompei:bool):
+    def __init__(self, predictions:List[Prediction], monoscopie:Monoscopie, emprise:gpd.GeoDataFrame, pompei:bool, nb_cpus:int):
         self.predictions:List[Prediction] = predictions
         self.monoscopie:Monoscopie = monoscopie
 
@@ -24,13 +26,23 @@ class AssociationBatimentEngine:
 
         self.pompei = pompei
 
+        self.nb_cpus = nb_cpus
+
 
 
     def run(self)->List[GroupeBatiments]:
         print("Calcul des géométries terrain")
         # On projette chaque prédiction du FFL sur le MNT
-        for prediction in tqdm(self.predictions):
-            prediction.compute_ground_geometry()
+        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+            # On lance toutes les tâches
+            futures = [executor.submit(compute_ground_geometrie, p) for p in self.predictions]
+            
+            # 3. On récupère les résultats avec tqdm pour la barre de progression
+            results = []
+            for f in tqdm(as_completed(futures), total=len(futures)):
+                results.append(f.result())
+        # On met à jour la liste des prédictions avec les versions lissées
+        self.predictions = results
 
         if self.emprise is not None:
             print("On ne conserve que les bâtiments à l'intérieur de l'emprise")

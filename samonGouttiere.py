@@ -214,18 +214,6 @@ class SamonGouttiere:
 
     def lisser_geometries(self):
         """
-        Lisse les géométries de chaque polygones
-        """
-        
-        print("Lissage de la géométrie")
-        os.makedirs(os.path.join(self.path_output, "gouttieres", "nettoyage"), exist_ok=True)
-        for prediction in tqdm(self.predictions):
-            prediction.lisser_geometries()
-            prediction.export_geometry_image(os.path.join(self.path_output, "gouttieres", "nettoyage"))
-
-
-    def lisser_geometries(self):
-        """
         Lisse les géométries de chaque polygone en parallèle
         """
         print("Lissage de la géométrie en parallèle")
@@ -243,13 +231,13 @@ class SamonGouttiere:
                 
         # On met à jour la liste des prédictions avec les versions lissées
         self.predictions = results
-        
+
 
     def association_bati(self):
         """
         Associer les bâtiments entre eux
         """
-        association_batiments_engine = AssociationBatimentEngine(self.predictions, self.monoscopie, self.emprise, self.pompei)
+        association_batiments_engine = AssociationBatimentEngine(self.predictions, self.monoscopie, self.emprise, self.pompei, self.nb_cpus)
         self.groupe_batiments = association_batiments_engine.run()
 
         os.makedirs(os.path.join(self.path_output, "gouttieres", "association_batiment"), exist_ok=True)
