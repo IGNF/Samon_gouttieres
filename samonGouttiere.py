@@ -11,16 +11,19 @@ from v2.groupe_segments import GroupeSegments
 from v2.calcul_intersection_engine import CalculIntersectionEngine
 from v2.fermer_batiment_engine import FermerBatimentEngine
 from v2.samon.monoscopie import Monoscopie
+from v2.parallelisation import traiter_lissage
 import geopandas as gpd
 from shapely import Polygon
 from tqdm import tqdm
 import time
 import warnings
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
 warnings.filterwarnings("ignore", message="'crs' was not provided")
 
 class SamonGouttiere:
 
-    def __init__(self, path_chantier:str, path_output:str, path_emprise:str, pompei:bool):
+    def __init__(self, path_chantier:str, path_output:str, path_emprise:str, pompei:bool, nb_cpus:int):
         
         # Chemin où se trouve le chantier
         if not os.path.isdir(path_chantier):
@@ -28,6 +31,7 @@ class SamonGouttiere:
         self.path_chantier = path_chantier
         self.path_output = path_output
         os.makedirs(os.path.join(self.path_output, "gouttieres"), exist_ok=True)
+        self.nb_cpus = nb_cpus
 
         self.mnt:MNT = None
         self.raf:RAF = None
@@ -189,7 +193,7 @@ class SamonGouttiere:
         """
         Charge les données
         """
-        self.mnt = MNT(self.get_mnt_path())
+        self.mnt = MNT(self.get_mnt_path(), self.emprise)
         self.raf = RAF(self.get_raf_path())
         predictions_ffl = self.get_predictions_ffl()
         if self.pompei:
@@ -219,6 +223,27 @@ class SamonGouttiere:
             prediction.lisser_geometries()
             prediction.export_geometry_image(os.path.join(self.path_output, "gouttieres", "nettoyage"))
 
+
+    def lisser_geometries(self):
+        """
+        Lisse les géométries de chaque polygone en parallèle
+        """
+        print("Lissage de la géométrie en parallèle")
+        os.makedirs(os.path.join(self.path_output, "gouttieres", "nettoyage"), exist_ok=True)
+
+
+        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+            # On lance toutes les tâches
+            futures = [executor.submit(traiter_lissage, p) for p in self.predictions]
+            
+            # 3. On récupère les résultats avec tqdm pour la barre de progression
+            results = []
+            for f in tqdm(as_completed(futures), total=len(futures)):
+                results.append(f.result())
+                
+        # On met à jour la liste des prédictions avec les versions lissées
+        self.predictions = results
+        
 
     def association_bati(self):
         """
@@ -347,7 +372,8 @@ if __name__=="__main__":
     parser.add_argument('--output', help='Répertoire où enregistrer les résultats')
     parser.add_argument('--emprise', help='Emprise au sol des zones où il faut reconstruire les bâtiments', default=None)
     parser.add_argument('--pompei', help='True si le chantier a été produit avec Pompei', default=False, type=bool)
+    parser.add_argument('--nb_cpus', help='Nombre de cpus pour la parallélisation', default=4, type=int)
     args = parser.parse_args()
 
-    samonGouttiere =  SamonGouttiere(args.input, args.output, args.emprise, args.pompei)
+    samonGouttiere =  SamonGouttiere(args.input, args.output, args.emprise, args.pompei, args.nb_cpus)
     samonGouttiere.run()

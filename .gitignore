@@ -8,3 +8,5 @@ run.sh
 ortho_49/*
 divers/*
 convert_aero.py
+
+zarr.json

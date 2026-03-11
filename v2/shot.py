@@ -8,6 +8,7 @@ from lxml import etree
 import os
 from typing import List
 from scipy.interpolate import LinearNDInterpolator
+import zarr
 
 
 class Shot:
@@ -367,16 +368,54 @@ class ShotOriente(Shot):
         point_local = self.mat_eucli.T @ np.vstack([x_bundle_1, y_bundle_1, z_bundle_1])
         point_local /= np.linalg.norm(point_local)
         return point_local
-
-
-
+        
 
 class MNT:
 
-    def __init__(self, path:str) -> None:
-        self.dem = gdal.Open(path)
-        self.gt = self.dem.GetGeoTransform()
-        self.rb = self.dem.GetRasterBand(1)
+    def __init__(self, path:str, emprise) -> None:
+
+
+        # buffer de 1 km
+        gdf_buffer = emprise.buffer(1000)
+
+        # bounding box
+        xmin, ymin, xmax, ymax = gdf_buffer.total_bounds
+
+        # ouverture du raster
+        ds = gdal.Open(path)
+
+        gt = ds.GetGeoTransform()
+
+        # conversion coordonnées -> indices pixels
+        px_min = int((xmin - gt[0]) / gt[1])
+        px_max = int((xmax - gt[0]) / gt[1])
+        py_min = int((ymax - gt[3]) / gt[5])
+        py_max = int((ymin - gt[3]) / gt[5])
+
+        # taille de la fenêtre
+        self.xsize = px_max - px_min
+        self.ysize = py_max - py_min
+
+        # lecture du raster
+        band = ds.GetRasterBand(1)
+        array = band.ReadAsArray(px_min, py_min, self.xsize, self.ysize)
+        
+        self.mnt = zarr.create_array(
+            store="data/example-1.zarr",
+            overwrite=True,
+            shape=array.shape,
+            chunks=(100, 100),
+            dtype="f4"
+        )
+
+        self.gt = (
+            gt[0] + px_min * gt[1],
+            gt[1],
+            gt[2],
+            gt[3] + py_min * gt[5],
+            gt[4],
+            gt[5],
+        )
 
 
     def world_to_image(self, x, y):
@@ -417,11 +456,11 @@ class MNT:
             xmax, ymax = np.max(x), np.max(y)
             imin, jmin = np.floor(self.world_to_image(xmin, ymax))
             imax, jmax = np.ceil(self.world_to_image(xmax, ymin))
-            imin = int(min(max(imin, 0), self.dem.RasterXSize))
-            imax = int(min(max(imax, 0), self.dem.RasterXSize - 1))
-            jmin = int(min(max(jmin, 0), self.dem.RasterYSize))
-            jmax = int(min(max(jmax, 0), self.dem.RasterYSize - 1))
-            array = self.rb.ReadAsArray(imin, jmin, imax - imin + 1, jmax - jmin + 1)
+            imin = int(min(max(imin, 0), self.xsize))
+            imax = int(min(max(imax, 0), self.xsize - 1))
+            jmin = int(min(max(jmin, 0), self.ysize))
+            jmax = int(min(max(jmax, 0), self.ysize - 1))
+            array = self.mnt[jmin:jmax+1,imin:imax+1]
             array = np.where(array==-99999.00, 0, array)
             xmin, ymax = self.image_to_world(imin, jmin)
             c = (x - xmin)/self.gt[1]
@@ -436,15 +475,14 @@ class MNT:
 class RAF:
 
     def __init__(self, path) -> None:
-        self.raf = gdal.Open(path)
-        self.gt = self.raf.GetGeoTransform()
-        self.rb = self.raf.GetRasterBand(1)
+        src = gdal.Open(path)
+        self.gt = src.GetGeoTransform()
+        self.raf = src.ReadAsArray()
 
     def get(self, x, y):
-        array = self.raf.ReadAsArray()
         c = (x - self.gt[0]) / self.gt[1]
         l = (y - self.gt[3]) / self.gt[5]
-        z = array[int(l), int(c)]
+        z = self.raf[int(l), int(c)]
         return z
     
 
