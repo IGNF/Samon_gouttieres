@@ -250,7 +250,7 @@ class SamonGouttiere:
     
     def association_segments(self):
         print("Association des segments")
-        association_segments_engine = AssociationSegmentsEngine(self.groupe_batiments)
+        association_segments_engine = AssociationSegmentsEngine(self.groupe_batiments, self.nb_cpus)
         self.groupe_segments = association_segments_engine.run()
         
         os.makedirs(os.path.join(self.path_output, "gouttieres", "association_segments"), exist_ok=True)

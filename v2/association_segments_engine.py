@@ -7,6 +7,8 @@ from v2.segments import Segment
 import statistics
 from v2.groupe_segments import GroupeSegments
 from shapely import Point
+from v2.parallelisation import create_segments
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 class AssociationSegmentsEngine:
 
@@ -14,16 +16,21 @@ class AssociationSegmentsEngine:
     seuil_distance_droite_1:float = 1.5
     seuil_distance_droite_2:float = 1
 
-    def __init__(self, groupes_batiments:List[GroupeBatiments]):
+    def __init__(self, groupes_batiments:List[GroupeBatiments], nb_cpus:int):
         self.groupes_batiments:List[GroupeBatiments] = groupes_batiments
         self.groupes_segments:List[GroupeSegments] = []
+        self.nb_cpus = nb_cpus
 
 
     def run(self):
         print("Création des segments pour chaque batiment")
         # pour chaque bâtiment, on crée un objet Segment pour chaque côté du polygone
-        for groupe_batiment in tqdm(self.groupes_batiments):
-            groupe_batiment.create_segments()
+        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+            futures = [executor.submit(create_segments, gb) for gb in self.groupes_batiments]
+            results = []
+            for f in tqdm(as_completed(futures), total=len(futures)):
+                results.append(f.result())
+        self.groupes_batiments = results
 
         print("On associe les segments qui représentent le même bord de toit")
         self.association()

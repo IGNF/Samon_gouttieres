@@ -14,3 +14,7 @@ def compute_ground_geometrie(prediction:Prediction)->Prediction:
 def compute_estim_z(groupe_batiment:GroupeBatiments)->GroupeBatiments:
     groupe_batiment.compute_z()
     return groupe_batiment
+
+def create_segments(groupe_batiment:GroupeBatiments)->GroupeBatiments:
+    groupe_batiment.create_segments()
+    return groupe_batiment
