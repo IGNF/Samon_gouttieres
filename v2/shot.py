@@ -407,6 +407,7 @@ class MNT:
             chunks=(100, 100),
             dtype="f4"
         )
+        self.mnt[:,:] = array
 
         self.gt = (
             gt[0] + px_min * gt[1],

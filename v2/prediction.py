@@ -140,8 +140,8 @@ class Prediction:
             identifiant.append(batiment.get_identifiant())
             identifiant_batiment.append(batiment.get_groupe_batiment_id())
             z_mean.append(batiment.get_z_mean())
-            nb_images.append(batiment.groupe_batiment.nb_images_z_estim)
-            methode.append(batiment.groupe_batiment.get_methode_estimation_hauteur())
+            nb_images.append(batiment.groupe_batiment_nb_images_z_estim)
+            methode.append(batiment.groupe_batiment_methode_estimation_hauteur)
 
         gdf = gpd.GeoDataFrame({"id":identifiant, "id_bati":identifiant_batiment, "z_mean":z_mean, "nb_images":nb_images, "methode":methode, "geometry":geometries}, crs="EPSG:2154")
         gdf.to_file(os.path.join(dir_path, self.get_image_name()+"_proj.gpkg"))

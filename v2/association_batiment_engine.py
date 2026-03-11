@@ -4,10 +4,9 @@ from tqdm import tqdm
 import geopandas as gpd
 from v2.groupe_batiments import GroupeBatiments
 import numpy as np
-from v2.samon.monoscopie import Monoscopie
 from v2.samon.infosResultats import InfosResultats
-from v2.shot import MNT
-from v2.parallelisation import compute_ground_geometrie
+from v2.shot import MNT, RAF, Shot
+from v2.parallelisation import compute_ground_geometrie, compute_estim_z
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 class AssociationBatimentEngine:
@@ -16,9 +15,8 @@ class AssociationBatimentEngine:
     Algorithme pour associer les bâtiments entre eux
     """
 
-    def __init__(self, predictions:List[Prediction], monoscopie:Monoscopie, emprise:gpd.GeoDataFrame, pompei:bool, nb_cpus:int):
+    def __init__(self, predictions:List[Prediction], emprise:gpd.GeoDataFrame, pompei:bool, nb_cpus:int, pva_path:str, mnt:MNT, raf:RAF, shots:List[Shot]):
         self.predictions:List[Prediction] = predictions
-        self.monoscopie:Monoscopie = monoscopie
 
         self.groupe_batiments:List[GroupeBatiments] = None
 
@@ -28,20 +26,22 @@ class AssociationBatimentEngine:
 
         self.nb_cpus = nb_cpus
 
+        self.pva_path = pva_path
+        self.mnt = mnt
+        self.raf = raf
+        self.shots = shots
+
 
 
     def run(self)->List[GroupeBatiments]:
         print("Calcul des géométries terrain")
+        
         # On projette chaque prédiction du FFL sur le MNT
         with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
-            # On lance toutes les tâches
             futures = [executor.submit(compute_ground_geometrie, p) for p in self.predictions]
-            
-            # 3. On récupère les résultats avec tqdm pour la barre de progression
             results = []
             for f in tqdm(as_completed(futures), total=len(futures)):
                 results.append(f.result())
-        # On met à jour la liste des prédictions avec les versions lissées
         self.predictions = results
 
         if self.emprise is not None:
@@ -66,44 +66,8 @@ class AssociationBatimentEngine:
         # On calcule une estimation de la hauteur du bâtiment
         self.compute_z_mean()
 
-
-        
-        # Permet de raccourcir l'étape d'appariement de segments 
-        # Utile en urbain dense pour gagner du temps, mais pas suffisamment testé 
-        #groupes_batiments_2 = []
-        #print("Division des grands groupes de bâtiments")
-        #for groupe_batiment in tqdm(self.groupe_batiments):
-        #    batiments = groupe_batiment.get_batiments()
-        #    if len(batiments)>30:
-        #        for batiment in batiments:
-        #            batiment.init()
-        #        groupes_batiments_2+=self.appariement_2(groupe_batiment)
-        #    else:
-        #        groupes_batiments_2.append(groupe_batiment)
-            
-        #self.groupe_batiments = groupes_batiments_2
-
         return self.groupe_batiments
-    
-
-    def appariement_2(self, groupe_batiment:GroupeBatiments):
-        # On prend une référence
-        reference_bati = groupe_batiment.get_reference_bati()
-        groupes = [[] for i in range(reference_bati.shape[0])]
-
-        for batiment in groupe_batiment.get_batiments():
-            area = np.array(reference_bati.intersection(batiment.geometrie_terrain).area)
-            groupes[np.argmax(area)].append(batiment)
-
-        new_groupes_batiments = []
-        for groupe in groupes:
-            new_groupe_batiments = GroupeBatiments(groupe)
-            new_groupe_batiments.estim_z = groupe_batiment.estim_z
-            new_groupe_batiments.nb_images_z_estim = groupe_batiment.nb_images_z_estim
-            new_groupes_batiments.append(new_groupe_batiments)
-        return new_groupes_batiments
-
-    
+   
 
     def init(self):
         self.groupe_batiments = []
@@ -173,8 +137,7 @@ class AssociationBatimentEngine:
                                     batis.append(homologue)
                                     liste.append(homologue)
 
-                    
-                    groupe_batiments.append(GroupeBatiments(batis))
+                    groupe_batiments.append(GroupeBatiments(batis, self.pva_path, self.mnt, self.raf, self.shots, self.pompei))
         
         return groupe_batiments
     
@@ -182,83 +145,30 @@ class AssociationBatimentEngine:
         return self.predictions[0].mnt
     
 
-    def compute_z_mean_samon(self, dictionnaires, nb_shots:int):
-        """
-        On calcule tous les points contenus dans dictionnaire avec Samon. On s'arrête dès qu'un point semble satisfaisant (suffisamment d'images utilisées pour le calculer)
-        """
-        for i, dictionnaire in enumerate(dictionnaires):
-            if i > 4:
-                break
-            infos_resultats:InfosResultats = self.monoscopie.run(dictionnaire["point"], dictionnaire["shot"])
-            if infos_resultats.reussi:
-                if nb_shots >=3 and infos_resultats.nb_images<3:
-                    continue 
-                else:
-                    point_3d = infos_resultats.point3d
-                    return point_3d[2], infos_resultats.nb_images
-        return None, None
-    
-
     def compute_z_mean(self):
         """
         On calcule le z moyen de chaque groupe de bâtiment, et on met à jour la projection au sol des bâtiments
         """
 
-        statistiques = [0,0,0,0]
+        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+            futures = [executor.submit(compute_estim_z, gb) for gb in self.groupe_batiments]
+            results = []
+            for f in tqdm(as_completed(futures), total=len(futures)):
+                results.append(f.result())
+
+        self.groupe_batiments = results
+
+        statistiques = {
+            "Barycentre":0,
+            "Points":0,
+            "Samon":0,
+            "Echec":0
+        }
 
         for groupe in tqdm(self.groupe_batiments):
-            if len(groupe.batiments)<=1:
-                continue
-            if groupe.estim_z is not None:
-                continue
-            estim_z = groupe.compute_z_mean()
-            if estim_z is not None:
-                groupe.estim_z = estim_z
-                statistiques[0]+=1
-                groupe.set_methode_estimation_hauteur("Barycentre")
+            statistiques[groupe.get_methode_estimation_hauteur()] += 1
             
-            
-            else:
-
-                # Estimation rapide de la hauteur du bâtiment, seulement dans le cas de Pompei
-                if self.pompei:
-                    estim_z, nb_points = groupe.compute_z_mean_v2()
-                else:
-                    nb_points = 0
-                
-                # Si on n'est pas parvenu à avoir une estimation du z avec la méthode rapide
-                if nb_points!=0:
-                    groupe.estim_z = estim_z
-                    groupe.nb_images_z_estim = nb_points
-                    statistiques[1]+=1
-                    groupe.set_methode_estimation_hauteur("Points")
-                else:
-                    # On récupère tous les points qui se trouvent sur le bâtiment
-                    # Pour cela, sur chaque polygone issus de pvas différentes, on applique un buffer de -2 mètres et on récupère tous les sommets du polygones
-                    dictionnaires = groupe.get_point_samon()
-                    # On récupère une estimation de la hauteur du bâtiment
-                    z_mean, nb_images = self.compute_z_mean_samon(dictionnaires, groupe.get_nb_shots())
-                    #z_mean, nb_images = 10, -1 # Cette ligne est utile pour les tests si on ne veut pas utiliser Samon qui rallonge sensiblement les calculs
-                    if z_mean is not None:
-                        groupe.estim_z = z_mean
-                        groupe.nb_images_z_estim = nb_images
-                        groupe.set_methode_estimation_hauteur("Samon")
-                        statistiques[2]+=1
-                    else:
-                        # Si cela n'a pas marché, alors on fixe arbitrairement la hauteur du bâtiment à 10 mètres
-                        centroid = groupe.batiments[0].geometrie_terrain.centroid
-                        z = groupe.batiments[0].mnt.get(centroid.x, centroid.y)+10
-                        groupe.estim_z = z
-                        groupe.nb_images_z_estim = -1
-                        groupe.set_methode_estimation_hauteur("Echec")
-                        statistiques[3]+=1
-                    
-            
-            groupe.update_geometry_terrain()
         print("Méthode utilisée pour estimer la hauteur des bâtiments")
-        print("Barycentre : ", statistiques[0])
-        print("Points : ", statistiques[1])
-        print("Samon : ", statistiques[2])
-        print("Echec : ", statistiques[3])
-
+        for key, value in statistiques.items():
+            print(f"{key} : {value}")
 

@@ -4,7 +4,8 @@ from v2.groupe_segments import GroupeSegments
 from v2.segments import Segment
 import numpy as np
 from shapely import Point, Polygon, make_valid, GeometryCollection, LineString, MultiPolygon
-from v2.shot import Shot
+from v2.shot import Shot, MNT, RAF
+from v2.samon.monoscopie import Monoscopie, InfosResultats
 import statistics
 from shapely.ops import polygonize_full
 import geopandas as gpd
@@ -17,8 +18,14 @@ class GroupeBatiments:
 
     identifiant_global = 0
 
-    def __init__(self, batiments:List[Batiment]):
+    def __init__(self, batiments:List[Batiment], pva_path:str, mnt:MNT, raf:RAF, shots:List[Shot], pompei):
         self.batiments = batiments
+
+        self.pva_path = pva_path
+        self.mnt = mnt
+        self.raf = raf
+        self.shots = shots
+        self.pompei = pompei
 
         self.identifiant:int = GroupeBatiments.identifiant_global
         GroupeBatiments.identifiant_global += 1
@@ -26,9 +33,13 @@ class GroupeBatiments:
 
         self.estim_z:float=None
 
+        # On supprime la liste des bâtiments homologues qui ne sert plus et qui empêche la sérialisation pour la parallélisation
+        for batiment in self.batiments:
+            batiment.batiments_homologues = []
+
         # A chaque bâtiment, on complète l'attribut qui indique à quel groupe de bâtiment il appartient
         for batiment in self.batiments:
-            batiment.groupe_batiment = self
+            batiment.groupe_batiment_identifiant = self.identifiant
 
         self.groupes_segments:List[GroupeSegments] = []
 
@@ -401,3 +412,77 @@ class GroupeBatiments:
                 area_max = area
                 gdf_max = gdf
         return gdf_max
+    
+
+    def compute_z_mean_samon(self, dictionnaires, nb_shots:int):
+        """
+        On calcule tous les points contenus dans dictionnaire avec Samon. On s'arrête dès qu'un point semble satisfaisant (suffisamment d'images utilisées pour le calculer)
+        """
+        monoscopie = Monoscopie(self.pva_path, self.mnt, self.raf, self.shots)
+
+        for i, dictionnaire in enumerate(dictionnaires):
+            if i > 4:
+                break
+            infos_resultats:InfosResultats = monoscopie.run(dictionnaire["point"], dictionnaire["shot"])
+            if infos_resultats.reussi:
+                if nb_shots >=3 and infos_resultats.nb_images<3:
+                    continue 
+                else:
+                    point_3d = infos_resultats.point3d
+                    return point_3d[2], infos_resultats.nb_images
+        return None, None
+
+
+    def compute_z(self):
+        if len(self.batiments)<=1:
+            self.set_methode_estimation_hauteur("Echec")
+        else:
+        
+            estim_z = self.compute_z_mean()
+            if estim_z is not None:
+                self.estim_z = estim_z
+                self.set_methode_estimation_hauteur("Barycentre")
+            
+            
+            else:
+                # Estimation rapide de la hauteur du bâtiment, seulement dans le cas de Pompei
+                if self.pompei:
+                    estim_z, nb_points = self.compute_z_mean_v2()
+                else:
+                    nb_points = 0
+                
+                # Si on n'est pas parvenu à avoir une estimation du z avec la méthode rapide
+                if nb_points!=0:
+                    self.estim_z = estim_z
+                    self.nb_images_z_estim = nb_points
+                    self.set_methode_estimation_hauteur("Points")
+                else:
+                    # On récupère tous les points qui se trouvent sur le bâtiment
+                    # Pour cela, sur chaque polygone issus de pvas différentes, on applique un buffer de -2 mètres et on récupère tous les sommets du polygones
+                    dictionnaires = self.get_point_samon()
+                    # On récupère une estimation de la hauteur du bâtiment
+                    z_mean, nb_images = self.compute_z_mean_samon(dictionnaires, self.get_nb_shots())
+                    #z_mean, nb_images = 10, -1 # Cette ligne est utile pour les tests si on ne veut pas utiliser Samon qui rallonge sensiblement les calculs
+                    if z_mean is not None:
+                        self.estim_z = z_mean
+                        self.nb_images_z_estim = nb_images
+                        self.set_methode_estimation_hauteur("Samon")
+                    else:
+                        # Si cela n'a pas marché, alors on fixe arbitrairement la hauteur du bâtiment à 10 mètres
+                        centroid = self.batiments[0].geometrie_terrain.centroid
+                        z = self.batiments[0].mnt.get(centroid.x, centroid.y)+10
+                        self.estim_z = z
+                        self.nb_images_z_estim = -1
+                        self.set_methode_estimation_hauteur("Echec")
+                
+        
+        self.update_geometry_terrain()
+        
+        for batiment in self.batiments:
+            batiment.groupe_batiment_estim_z = self.estim_z
+            batiment.groupe_batiment_nb_images_z_estim = self.nb_images_z_estim
+            batiment.groupe_batiment_methode_estimation_hauteur = self.get_methode_estimation_hauteur()
+
+
+
+        

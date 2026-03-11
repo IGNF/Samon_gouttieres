@@ -10,7 +10,6 @@ from v2.groupe_batiments import GroupeBatiments
 from v2.groupe_segments import GroupeSegments
 from v2.calcul_intersection_engine import CalculIntersectionEngine
 from v2.fermer_batiment_engine import FermerBatimentEngine
-from v2.samon.monoscopie import Monoscopie
 from v2.parallelisation import traiter_lissage
 import geopandas as gpd
 from shapely import Polygon
@@ -40,8 +39,6 @@ class SamonGouttiere:
 
         self.groupe_batiments:List[GroupeBatiments] = []
         self.groupe_segments:List[GroupeSegments] = []
-
-        self.monoscopie:Monoscopie = []
 
         self.pompei = pompei
 
@@ -209,8 +206,6 @@ class SamonGouttiere:
                     predictions.append(Prediction(shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt, self.emprise))
         self.predictions = predictions
 
-        self.monoscopie = Monoscopie(self.get_pva_path(), self.mnt, self.raf, self.shots)
-
 
     def lisser_geometries(self):
         """
@@ -237,8 +232,16 @@ class SamonGouttiere:
         """
         Associer les bâtiments entre eux
         """
-        association_batiments_engine = AssociationBatimentEngine(self.predictions, self.monoscopie, self.emprise, self.pompei, self.nb_cpus)
+        association_batiments_engine = AssociationBatimentEngine(self.predictions, self.emprise, self.pompei, self.nb_cpus, self.get_pva_path(), self.mnt, self.raf, self.shots)
         self.groupe_batiments = association_batiments_engine.run()
+
+        # On doit refaire les liens car ils ont disparu avec la parallélisation
+        for prediction in self.predictions:
+            prediction.batiments = []
+            for groupe_batiment in self.groupe_batiments:
+                for batiment in groupe_batiment.batiments:
+                    if batiment.shot.image == prediction.shot.image:
+                        prediction.batiments.append(batiment)
 
         os.makedirs(os.path.join(self.path_output, "gouttieres", "association_batiment"), exist_ok=True)
         for prediction in self.predictions:

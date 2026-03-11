@@ -10,3 +10,5 @@ divers/*
 convert_aero.py
 
 zarr.json
+
+data/*

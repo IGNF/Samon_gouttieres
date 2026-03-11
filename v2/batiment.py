@@ -28,7 +28,6 @@ class Batiment:
 
 
         self._marque = False
-        self.groupe_batiment = None # Groupe de bâtiment auquel appartient ce bâtiment
 
         # tableau numpy contenant les informations relatives aux segments
         self.array:np.ndarray = None
@@ -36,6 +35,11 @@ class Batiment:
         self.barycentre:np.ndarray = None
         self.equation_droite:np.ndarray = None
         self.d_max:np.ndarray = None
+
+        self.groupe_batiment_identifiant = None
+        self.groupe_batiment_estim_z = None
+        self.groupe_batiment_nb_images_z_estim = None
+        self.groupe_batiment_methode_estimation_hauteur = None
 
         # Calcule pour chaque point de la géométrie le vecteur directeur entre le sommet de prise de vue et ce point
         self.du = self.compute_u()
@@ -164,7 +168,6 @@ class Batiment:
         """
         Calcule l'emprise au sol du bâtiment, projeté sur un MNT
         """
-
         x, y = self.geometrie_image.exterior.coords.xy
         
         c = []
@@ -364,13 +367,11 @@ class Batiment:
         """
         Renvoie l'identifiant du groupe de bâtiments
         """
-        if self.groupe_batiment is not None:
-            return self.groupe_batiment.identifiant
+        return self.groupe_batiment_identifiant
         raise ValueError(f"Le bâtiment {self.identifiant} n'est associé à aucun groupe de bâtiment")
         
     def get_z_mean(self)->float:
-        if self.groupe_batiment is not None:
-            return self.groupe_batiment.estim_z
+        return self.groupe_batiment_estim_z
         raise ValueError(f"Le bâtiment {self.identifiant} n'est associé à aucun groupe de bâtiment")
     
 
