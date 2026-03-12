@@ -251,7 +251,15 @@ class SamonGouttiere:
     def association_segments(self):
         print("Association des segments")
         association_segments_engine = AssociationSegmentsEngine(self.groupe_batiments, self.nb_cpus)
-        self.groupe_segments = association_segments_engine.run()
+        self.groupe_segments, self.groupe_batiments = association_segments_engine.run()
+
+        # On doit refaire les liens car ils ont disparu avec la parallélisation
+        for prediction in self.predictions:
+            prediction.batiments = []
+            for groupe_batiment in self.groupe_batiments:
+                for batiment in groupe_batiment.batiments:
+                    if batiment.shot.image == prediction.shot.image:
+                        prediction.batiments.append(batiment)
         
         os.makedirs(os.path.join(self.path_output, "gouttieres", "association_segments"), exist_ok=True)
         for prediction in self.predictions:

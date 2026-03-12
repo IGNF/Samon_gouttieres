@@ -10,6 +10,40 @@ from shapely import Point
 from v2.parallelisation import create_segments
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+
+def association_parallele(groupe_batiment:GroupeBatiments):
+    batiments = groupe_batiment.get_batiments()
+    groupes_segments = []
+    # Il faut au moins deux bâtiments dans le groupe de bâtiments
+    if len(batiments) >= 2:
+        # on parcourt les paires de bâtiments
+        for i in range(len(batiments)):
+            bati_1 = batiments[i]
+            for j in range(i+1, len(batiments)):
+                bati_2 = batiments[j]
+                # Il faut que la projection au sol des deux bâtiments se recouvre suffisamment (IoU > 0.5)
+                if bati_1.get_image()!=bati_2.get_image() and bati_1.compute_iou(bati_2)>0.5:
+                    
+                    # On effectue un premier appariement grossier
+                    AssociationSegmentsEngine.premier_appariement(bati_1, bati_2)
+                    AssociationSegmentsEngine.premier_appariement(bati_2, bati_1)
+                    # On recherche les composantes connexes
+                    composantes_connexes = AssociationSegmentsEngine.composante_connexe(bati_1)
+                    # On calcule la translation médiane entre les deux bâtiments
+                    dx, dy = AssociationSegmentsEngine.calculer_translation(composantes_connexes)
+                    AssociationSegmentsEngine.demarque_goutieres(bati_1)
+                    AssociationSegmentsEngine.demarque_goutieres(bati_2)
+                    # On effectue un deuxième appariement plus fin, en tenant compte de la translation
+                    AssociationSegmentsEngine.deuxieme_appariement(bati_1, bati_2, dx, dy)
+                    AssociationSegmentsEngine.deuxieme_appariement(bati_2, bati_1, dx, dy)
+                    AssociationSegmentsEngine.demarque_goutieres(bati_1)
+                    AssociationSegmentsEngine.demarque_goutieres(bati_2)
+        # On récupère les composantes connexes pour tous les segments du groupe
+        groupes_segments = AssociationSegmentsEngine.composante_connexe_bati(groupe_batiment)
+    return groupes_segments
+
+    
+
 class AssociationSegmentsEngine:
 
     seuil_ps:float = 0.98
@@ -34,7 +68,7 @@ class AssociationSegmentsEngine:
 
         print("On associe les segments qui représentent le même bord de toit")
         self.association()
-        return self.groupes_segments
+        return self.groupes_segments, self.groupes_batiments
 
 
     def association(self):
@@ -42,42 +76,27 @@ class AssociationSegmentsEngine:
         Effectue l'association entre les segments appartenant à un même groupe de bâtiments
         """
         # On parcourt les groupes de bâtiments
-        for groupe_batiment in tqdm(self.groupes_batiments, desc="Parcours des groupes de bâtiments"):
-            batiments = groupe_batiment.get_batiments()
-            # Il faut au moins deux bâtiments dans le groupe de bâtiments
-            if len(batiments) >= 2:
-                # on parcourt les paires de bâtiments
+        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+            futures = [executor.submit(association_parallele, gb) for gb in self.groupes_batiments]
+            results = []
+            for f in tqdm(as_completed(futures), total=len(futures)):
+                results += f.result()
+        self.groupes_segments = results
 
-                for i in range(len(batiments)):
-                    bati_1 = batiments[i]
-                    for j in range(i+1, len(batiments)):
-                        bati_2 = batiments[j]
-                        # Il faut que la projection au sol des deux bâtiments se recouvre suffisamment (IoU > 0.5)
-                        if bati_1.get_image()!=bati_2.get_image() and bati_1.compute_iou(bati_2)>0.5:
-                            
-                            # On effectue un premier appariement grossier
-                            self.premier_appariement(bati_1, bati_2)
-                            self.premier_appariement(bati_2, bati_1)
-                            # On recherche les composantes connexes
-                            composantes_connexes = self.composante_connexe(bati_1)
+        
+        print("On reconstruit les associations cassées par la parallélisation")
+        for groupe_batiment in tqdm(self.groupes_batiments):
+            for groupe_segments in self.groupes_segments:
+                if groupe_segments.id_groupe_batiment==groupe_batiment.get_identifiant():
 
-                            # On calcule la translation médiane entre les deux bâtiments
-                            dx, dy = self.calculer_translation(composantes_connexes)
+                    for batiment in groupe_batiment.batiments:
+                        for segment_gr in groupe_segments.segments:
+                            for i, segment_bat in enumerate(batiment.segments):
+                                if segment_gr.identifiant==segment_bat.identifiant:
+                                    batiment.segments[i] = segment_gr
 
-                            self.demarque_goutieres(bati_1)
-                            self.demarque_goutieres(bati_2)
-
-                            # On effectue un deuxième appariement plus fin, en tenant compte de la translation
-                            self.deuxieme_appariement(bati_1, bati_2, dx, dy)
-                            self.deuxieme_appariement(bati_2, bati_1, dx, dy)
-
-                            self.demarque_goutieres(bati_1)
-                            self.demarque_goutieres(bati_2)
-                # On récupère les composantes connexes pour tous les segments du groupe
-                self.composante_connexe_bati(groupe_batiment)
-
-
-    def premier_appariement(self, b1:Batiment, b2:Batiment):
+    @staticmethod
+    def premier_appariement(b1:Batiment, b2:Batiment):
         """
         Premier appariement grossier
         """
@@ -111,7 +130,7 @@ class AssociationSegmentsEngine:
                 segment.add_homologue_1(segment_homologue)
 
     
-    def deuxieme_appariement(self, b1:Batiment, b2:Batiment, dx:float, dy:float):
+    def deuxieme_appariement(b1:Batiment, b2:Batiment, dx:float, dy:float):
         """
         Deuxième appariement plus fin
         """
@@ -147,8 +166,8 @@ class AssociationSegmentsEngine:
                 segment.add_homologue_2(segment_homologue)
 
     
-    
-    def composante_connexe(self, b1:Batiment)->List[List[Segment]]:
+    @staticmethod
+    def composante_connexe(b1:Batiment)->List[List[Segment]]:
         """
         On récupère les composantes connexes pour chaque segment sur la relation : le segment est homologue avec cet autre segment
         """
@@ -176,8 +195,8 @@ class AssociationSegmentsEngine:
         
         return composantes_connexes
     
-
-    def segments_meme_taille(self, composante_connexe:List[Segment])->List[Segment]:
+    @staticmethod
+    def segments_meme_taille(composante_connexe:List[Segment])->List[Segment]:
         """
         On récupère les deux segments qui ont la taille la plus proche 
         """
@@ -201,11 +220,12 @@ class AssociationSegmentsEngine:
                     couple_minimal = [g, b]
         return couple_minimal
     
-    def distance(self, P0:Point, P1:Point):
+    @staticmethod
+    def distance(P0:Point, P1:Point):
         return np.sqrt((P0.x - P1.x)**2 + (P0.y - P1.y)**2)
     
-
-    def calculer_translation(self, composantes_connexes:List[List[Segment]]):
+    @staticmethod
+    def calculer_translation(composantes_connexes:List[List[Segment]]):
         """
         Calcule une translation à appliquer entre deux bâtiments à partir des segments appariés
         """
@@ -215,7 +235,7 @@ class AssociationSegmentsEngine:
             # Si on a au moins trois segments, alors on prend les deux segments qui ont la taille plus proche
             # On modifie alors la composante connexe pour avoir exactement deux segments
             if len(composante_connexe) >= 3:
-                composante_connexe_temp = self.segments_meme_taille(composante_connexe)
+                composante_connexe_temp = AssociationSegmentsEngine.segments_meme_taille(composante_connexe)
                 if composante_connexe_temp is not None:
                     composante_connexe = composante_connexe_temp
             # Si on n'a que deux segments, alors on prend ces deux segments 
@@ -228,7 +248,7 @@ class AssociationSegmentsEngine:
                     P1 = g0.P1_sol()
 
                     # On calcule la distance dx, dy entre ces deux segments
-                    if self.distance(P0, g1.P0_sol()) < self.distance(P0, g1.P1_sol()):
+                    if AssociationSegmentsEngine.distance(P0, g1.P0_sol()) < AssociationSegmentsEngine.distance(P0, g1.P1_sol()):
                         liste_dx.append(g1.P0_sol().x - P0.x)
                         liste_dx.append(g1.P1_sol().x - P1.x)
                         liste_dy.append(g1.P0_sol().y - P0.y)
@@ -248,17 +268,18 @@ class AssociationSegmentsEngine:
             dy = statistics.median(liste_dy)
         return dx, dy
     
-
-    def demarque_goutieres(self, bati:Batiment):
+    @staticmethod
+    def demarque_goutieres(bati:Batiment):
         for segment in bati.get_segments():
             segment._marque = False
             segment.segments_homologues_1 = []
 
-
-    def composante_connexe_bati(self, groupe_batiment:GroupeBatiments):
+    @staticmethod
+    def composante_connexe_bati(groupe_batiment:GroupeBatiments):
         """
         Calcule les composantes connexes au niveau du bati
         """
+        groupes_segments = []
         for batiment in groupe_batiment.get_batiments():
             for segment in batiment.get_segments():
                 if not segment._marque:
@@ -277,4 +298,5 @@ class AssociationSegmentsEngine:
                     
                     if len(liste_connexe) >= 2:
                         groupe_segments = GroupeSegments(liste_connexe)
-                        self.groupes_segments.append(groupe_segments)
+                        groupes_segments.append(groupe_segments)
+        return groupes_segments

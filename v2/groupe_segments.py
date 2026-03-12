@@ -38,6 +38,8 @@ class GroupeSegments:
         self.b = None
 
         self.intersections:List[Dict[Point, GroupeSegments]] = []
+        self.id_groupe_batiment = segments[0].batiment.groupe_batiment_identifiant
+        self.id_batiment = segments[0].batiment.identifiant
 
     
     @classmethod

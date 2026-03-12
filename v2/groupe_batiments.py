@@ -11,7 +11,7 @@ from shapely.ops import polygonize_full
 import geopandas as gpd
 
 
-id_debug = 618
+id_debug = 14
 
 
 class GroupeBatiments:
@@ -331,10 +331,7 @@ class GroupeBatiments:
     
 
     def get_groupe_segments_one_segment(self, segment:Segment)->GroupeSegments:
-        for groupe_segments in self.groupes_segments:
-            if segment in groupe_segments.segments:
-                return groupe_segments
-        return None
+        return segment.groupe_segments
 
     def geometrie_fermee_valide(self)->bool:
         """
@@ -482,7 +479,3 @@ class GroupeBatiments:
             batiment.groupe_batiment_estim_z = self.estim_z
             batiment.groupe_batiment_nb_images_z_estim = self.nb_images_z_estim
             batiment.groupe_batiment_methode_estimation_hauteur = self.get_methode_estimation_hauteur()
-
-
-
-        
