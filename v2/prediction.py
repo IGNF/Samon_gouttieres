@@ -53,9 +53,10 @@ class Prediction:
         emprise_image = self.emprise_to_geom_image(emprise)
 
         gdf = gpd.read_file(self.path_predictions)
+        gdf = gdf[gdf.intersects(emprise_image)]
         batiments:List[Batiment] = []
         for geometry in gdf.geometry:
-            if isinstance(geometry, Polygon) and geometry.intersects(emprise_image):
+            if isinstance(geometry, Polygon):
                 batiments.append(Batiment(geometry, self.shot, self.mnt))
         return batiments
     

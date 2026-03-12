@@ -18,3 +18,9 @@ def compute_estim_z(groupe_batiment:GroupeBatiments)->GroupeBatiments:
 def create_segments(groupe_batiment:GroupeBatiments)->GroupeBatiments:
     groupe_batiment.create_segments()
     return groupe_batiment
+
+
+def create_predictions(args)->Prediction:
+    shot, path, mnt, emprise = args
+    prediction = Prediction(shot, path, mnt, emprise)
+    return prediction

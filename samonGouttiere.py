@@ -10,7 +10,7 @@ from v2.groupe_batiments import GroupeBatiments
 from v2.groupe_segments import GroupeSegments
 from v2.calcul_intersection_engine import CalculIntersectionEngine
 from v2.fermer_batiment_engine import FermerBatimentEngine
-from v2.parallelisation import traiter_lissage
+from v2.parallelisation import traiter_lissage, create_predictions
 import geopandas as gpd
 from shapely import Polygon
 from tqdm import tqdm
@@ -199,12 +199,23 @@ class SamonGouttiere:
             self.shots = self.get_shots(predictions_ffl)
 
         
-        predictions = []
+        arguments = []
         for prediction_ffl in tqdm(predictions_ffl):
             for shot in self.shots:
                 if shot.image+".shp" == prediction_ffl or shot.image+".gpkg" == prediction_ffl:
-                    predictions.append(Prediction(shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt, self.emprise))
-        self.predictions = predictions
+                    arguments.append([shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt, self.emprise])
+
+        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+            # On lance toutes les tâches
+            futures = [executor.submit(create_predictions, args) for args in arguments]
+            
+            # 3. On récupère les résultats avec tqdm pour la barre de progression
+            results = []
+            for f in tqdm(as_completed(futures), total=len(futures)):
+                results.append(f.result())
+                
+        # On met à jour la liste des prédictions avec les versions lissées
+        self.predictions = results
 
 
     def lisser_geometries(self):
