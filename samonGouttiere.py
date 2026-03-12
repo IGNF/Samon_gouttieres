@@ -198,7 +198,6 @@ class SamonGouttiere:
         else:
             self.shots = self.get_shots(predictions_ffl)
 
-        mnt_path = self.get_mnt_path()
         predictions = []
         for prediction_ffl in tqdm(predictions_ffl):
             for shot in self.shots:

@@ -33,9 +33,12 @@ class Prediction:
 
 
         x, y = polygon.exterior.coords.xy
+        z = []
+        for i in range(len(x)):
+            z.append(mnt_global.get(x[i], y[i])[0])
         x = np.array(x)
         y = np.array(y)
-        z = mnt_global.get(x, y)
+        z = np.array(z)
 
         c, l = self.shot.world_to_image(x, y, z)
 
