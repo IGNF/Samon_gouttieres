@@ -10,7 +10,7 @@ from v2.groupe_batiments import GroupeBatiments
 from v2.groupe_segments import GroupeSegments
 from v2.calcul_intersection_engine import CalculIntersectionEngine
 from v2.fermer_batiment_engine import FermerBatimentEngine
-from v2.parallelisation import traiter_lissage, create_predictions
+from v2.parallelisation import traiter_lissage, load_predictions
 import geopandas as gpd
 from shapely import Polygon
 from tqdm import tqdm
@@ -190,7 +190,7 @@ class SamonGouttiere:
         """
         Charge les données
         """
-        self.mnt = MNT(self.get_mnt_path(), self.emprise)
+        self.mnt = MNT.load_mnt(self.get_mnt_path(), self.emprise)
         self.raf = RAF(self.get_raf_path())
         predictions_ffl = self.get_predictions_ffl()
         if self.pompei:
@@ -198,16 +198,18 @@ class SamonGouttiere:
         else:
             self.shots = self.get_shots(predictions_ffl)
 
-        
-        arguments = []
+        mnt_path = self.get_mnt_path()
+        predictions = []
         for prediction_ffl in tqdm(predictions_ffl):
             for shot in self.shots:
                 if shot.image+".shp" == prediction_ffl or shot.image+".gpkg" == prediction_ffl:
-                    arguments.append([shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt, self.emprise])
+                    predictions.append(Prediction(shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt, self.emprise))
+
+        self.predictions = predictions
 
         with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
             # On lance toutes les tâches
-            futures = [executor.submit(create_predictions, args) for args in arguments]
+            futures = [executor.submit(load_predictions, p) for p in self.predictions]
             
             # 3. On récupère les résultats avec tqdm pour la barre de progression
             results = []

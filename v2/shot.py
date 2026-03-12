@@ -372,9 +372,14 @@ class ShotOriente(Shot):
 
 class MNT:
 
-    def __init__(self, path:str, emprise) -> None:
+    def __init__(self, mnt:np.ndarray, gt) -> None:
+        self.mnt = mnt
+        self.gt = gt
+        self.xsize = mnt.shape[1]
+        self.ysize = mnt.shape[0]
 
-
+    @staticmethod
+    def load_mnt(path, emprise):
         # buffer de 1 km
         gdf_buffer = emprise.buffer(1000)
 
@@ -393,23 +398,27 @@ class MNT:
         py_max = int((ymin - gt[3]) / gt[5])
 
         # taille de la fenêtre
-        self.xsize = px_max - px_min
-        self.ysize = py_max - py_min
+        xsize = px_max - px_min
+        ysize = py_max - py_min
 
         # lecture du raster
         band = ds.GetRasterBand(1)
-        array = band.ReadAsArray(px_min, py_min, self.xsize, self.ysize)
-        
-        self.mnt = zarr.create_array(
-            store="data/example-1.zarr",
+
+        xsize = min(xsize, ds.RasterXSize - px_min)
+        ysize = min(ysize, ds.RasterYSize - py_min)
+
+        array = band.ReadAsArray(px_min, py_min, xsize, ysize)
+
+        mnt = zarr.create_array(
+            store="data/mnt_global.zarr",
             overwrite=True,
             shape=array.shape,
             chunks=(100, 100),
             dtype="f4"
         )
-        self.mnt[:,:] = array
+        mnt[:,:] = array
 
-        self.gt = (
+        gt = (
             gt[0] + px_min * gt[1],
             gt[1],
             gt[2],
@@ -418,6 +427,46 @@ class MNT:
             gt[5],
         )
 
+        ds = None
+        band = None
+        return MNT(mnt, gt)
+
+
+
+    @staticmethod
+    def from_mnt(mnt_global, emprise, shot):
+        xmin, ymin, xmax, ymax = emprise.buffer(1000).bounds
+
+        px_min = int((xmin - mnt_global.gt[0]) / mnt_global.gt[1])
+        px_max = int((xmax - mnt_global.gt[0]) / mnt_global.gt[1])
+        py_min = int((ymax - mnt_global.gt[3]) / mnt_global.gt[5])
+        py_max = int((ymin - mnt_global.gt[3]) / mnt_global.gt[5])
+        
+        px_min = max(0, px_min)
+        px_max = min(mnt_global.mnt.shape[1], px_max)
+        py_min = max(0, py_min)
+        py_max = min(mnt_global.mnt.shape[0], py_max)
+
+        array = mnt_global.mnt[py_min:py_max,px_min:px_max]
+
+        mnt = zarr.create_array(
+            store=f"data/mnt_{shot}.zarr",
+            overwrite=True,
+            shape=array.shape,
+            chunks=(100, 100),
+            dtype="f4"
+        )
+        mnt[:,:] = array
+
+        gt = (
+            mnt_global.gt[0] + px_min * mnt_global.gt[1],
+            mnt_global.gt[1],
+            mnt_global.gt[2],
+            mnt_global.gt[3] + py_min * mnt_global.gt[5],
+            mnt_global.gt[4],
+            mnt_global.gt[5],
+        )
+        return MNT(mnt, gt)
 
     def world_to_image(self, x, y):
         """

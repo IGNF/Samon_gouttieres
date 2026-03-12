@@ -12,20 +12,22 @@ class Prediction:
     Classe représentant une image avec ses prédictions 
     """
 
-    def __init__(self, shot:Shot, path_predictions:str, mnt:MNT, emprise:gpd.GeoSeries):
+    def __init__(self, shot:Shot, path_predictions:str, mnt_global:MNT, emprise):
         """
         shot : paramètres de l'acquisition de la photo
         path_predictions : chemin vers le fichier shapefile avec les prédictions
         """
         self.shot:Shot = shot
         self.path_predictions:str = path_predictions
-        self.mnt:MNT = mnt
-        self.batiments:List[Batiment] = self.read_file(emprise)
+        self.mnt:MNT = MNT.from_mnt(mnt_global, shot.emprise, shot.image)
+        self.batiments:List[Batiment] = []
+        self.emprise = emprise
+        self.emprise_image = self.emprise_to_geom_image(emprise, mnt_global)
 
         self.gdf:gpd.GeoDataFrame = None
 
     
-    def emprise_to_geom_image(self, emprise:gpd.GeoSeries):
+    def emprise_to_geom_image(self, emprise:gpd.GeoSeries, mnt_global:MNT):
         xmin, ymin, xmax, ymax = emprise.total_bounds
         polygon = Polygon.from_bounds(xmin, ymin, xmax, ymax)
 
@@ -33,7 +35,7 @@ class Prediction:
         x, y = polygon.exterior.coords.xy
         x = np.array(x)
         y = np.array(y)
-        z = self.mnt.get(x, y)
+        z = mnt_global.get(x, y)
 
         c, l = self.shot.world_to_image(x, y, z)
 
@@ -45,20 +47,17 @@ class Prediction:
 
         
 
-    def read_file(self, emprise) -> List[Batiment]:
+    def read_file(self) -> List[Batiment]:
         """
         Ouvre le fichier shapefile associé à la prédiction et crée un ensemble de bâtiments
         """
-
-        emprise_image = self.emprise_to_geom_image(emprise)
-
         gdf = gpd.read_file(self.path_predictions)
-        gdf = gdf[gdf.intersects(emprise_image)]
+        gdf = gdf[gdf.intersects(self.emprise_image)]
         batiments:List[Batiment] = []
         for geometry in gdf.geometry:
             if isinstance(geometry, Polygon):
                 batiments.append(Batiment(geometry, self.shot, self.mnt))
-        return batiments
+        self.batiments = batiments
     
 
     def lisser_geometries(self):

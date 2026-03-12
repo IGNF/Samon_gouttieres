@@ -22,8 +22,6 @@ class FermerBatimentEngine:
 
         # On récupère le bâtiment qui est le plus proche du nadir et le plus grand en surface
         batiment_principal = groupe_batiment.get_batiment_nearest_nadir()
-        if groupe_batiment.get_identifiant()==id_debug:
-            print("batiment_principal : ", batiment_principal.shot.image, batiment_principal.identifiant)
 
         # On récupère tous les bâtiments issu de la même pva que le bâtiment principal
         batiments_principaux = groupe_batiment.get_all_bati_same_PVA(batiment_principal)
