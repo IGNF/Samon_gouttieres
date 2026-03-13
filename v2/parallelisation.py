@@ -23,3 +23,8 @@ def create_segments(groupe_batiment:GroupeBatiments)->GroupeBatiments:
 def load_predictions(prediction:Prediction)->Prediction:
     prediction.read_file()
     return prediction
+
+def create_predictions(args)->Prediction:
+    shot, path, mnt, emprise = args
+    prediction = Prediction(shot, path, mnt, emprise)
+    return prediction

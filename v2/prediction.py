@@ -19,12 +19,13 @@ class Prediction:
         """
         self.shot:Shot = shot
         self.path_predictions:str = path_predictions
-        self.mnt:MNT = MNT.from_mnt(mnt_global, shot.emprise, shot.image)
+        self.mnt:MNT = MNT.from_mnt(mnt_global, shot.emprise, f"shot_{shot.image}")
         self.batiments:List[Batiment] = []
         self.emprise = emprise
         self.emprise_image = self.emprise_to_geom_image(emprise, mnt_global)
 
         self.gdf:gpd.GeoDataFrame = None
+        self.read_file()
 
     
     def emprise_to_geom_image(self, emprise:gpd.GeoSeries, mnt_global:MNT):

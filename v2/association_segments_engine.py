@@ -57,16 +57,18 @@ class AssociationSegmentsEngine:
 
 
     def run(self):
-        print("Création des segments pour chaque batiment")
         # pour chaque bâtiment, on crée un objet Segment pour chaque côté du polygone
+
+        cs = int(len(self.groupes_batiments)/(10*self.nb_cpus)+1)
+            
         with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
-            futures = [executor.submit(create_segments, gb) for gb in self.groupes_batiments]
-            results = []
-            for f in tqdm(as_completed(futures), total=len(futures)):
-                results.append(f.result())
+            results = list(tqdm(
+            executor.map(create_segments, self.groupes_batiments, chunksize=cs), 
+            total=len(self.groupes_batiments),
+            desc="Création des segments pour chaque batiment"
+        ))
         self.groupes_batiments = results
 
-        print("On associe les segments qui représentent le même bord de toit")
         self.association()
         return self.groupes_segments, self.groupes_batiments
 
@@ -75,13 +77,20 @@ class AssociationSegmentsEngine:
         """
         Effectue l'association entre les segments appartenant à un même groupe de bâtiments
         """
-        # On parcourt les groupes de bâtiments
+
+        cs = int(len(self.groupes_batiments)/(10*self.nb_cpus)+1)
+            
         with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
-            futures = [executor.submit(association_parallele, gb) for gb in self.groupes_batiments]
-            results = []
-            for f in tqdm(as_completed(futures), total=len(futures)):
-                results += f.result()
-        self.groupes_segments = results
+            results = list(tqdm(
+                executor.map(association_parallele, self.groupes_batiments, chunksize=cs), 
+                total=len(self.groupes_batiments),
+                desc="Association des segments"
+            ))
+            executor.shutdown(wait=False, cancel_futures=True)
+        groupes_segments = []
+        for r in results:
+            groupes_segments += r
+        self.groupes_segments = groupes_segments
 
         
         print("On reconstruit les associations cassées par la parallélisation")

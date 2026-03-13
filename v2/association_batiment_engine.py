@@ -34,14 +34,15 @@ class AssociationBatimentEngine:
 
 
     def run(self)->List[GroupeBatiments]:
-        print("Calcul des géométries terrain")
-        
-        # On projette chaque prédiction du FFL sur le MNT
+
+        cs = int(len(self.predictions)/(10*self.nb_cpus)+1)
+            
         with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
-            futures = [executor.submit(compute_ground_geometrie, p) for p in self.predictions]
-            results = []
-            for f in tqdm(as_completed(futures), total=len(futures)):
-                results.append(f.result())
+            results = list(tqdm(
+            executor.map(compute_ground_geometrie, self.predictions, chunksize=cs), 
+            total=len(self.predictions),
+            desc="Calcul des géométries terrain"
+        ))
         self.predictions = results
 
         if self.emprise is not None:
@@ -137,7 +138,7 @@ class AssociationBatimentEngine:
                                     batis.append(homologue)
                                     liste.append(homologue)
 
-                    groupe_batiments.append(GroupeBatiments(batis, self.pva_path, self.mnt, self.raf, self.shots, self.pompei))
+                    groupe_batiments.append(GroupeBatiments(batis, self.pva_path, prediction.mnt, self.raf, self.shots, self.pompei))
         
         return groupe_batiments
     
@@ -150,11 +151,14 @@ class AssociationBatimentEngine:
         On calcule le z moyen de chaque groupe de bâtiment, et on met à jour la projection au sol des bâtiments
         """
 
+        cs = int(len(self.groupe_batiments)/(10*self.nb_cpus)+1)
+            
         with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
-            futures = [executor.submit(compute_estim_z, gb) for gb in self.groupe_batiments]
-            results = []
-            for f in tqdm(as_completed(futures), total=len(futures)):
-                results.append(f.result())
+            results = list(tqdm(
+            executor.map(compute_estim_z, self.groupe_batiments, chunksize=cs), 
+            total=len(self.groupe_batiments),
+            desc="Estimation des hauteurs de bâtiment"
+        ))
 
         self.groupe_batiments = results
 

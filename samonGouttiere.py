@@ -10,13 +10,19 @@ from v2.groupe_batiments import GroupeBatiments
 from v2.groupe_segments import GroupeSegments
 from v2.calcul_intersection_engine import CalculIntersectionEngine
 from v2.fermer_batiment_engine import FermerBatimentEngine
-from v2.parallelisation import traiter_lissage, load_predictions
+from v2.parallelisation import traiter_lissage, create_predictions
 import geopandas as gpd
 from shapely import Polygon
 from tqdm import tqdm
 import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import os
+import multiprocessing
+multiprocessing.set_start_method('spawn', force=True)
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 warnings.filterwarnings("ignore", message="'crs' was not provided")
 
@@ -198,22 +204,21 @@ class SamonGouttiere:
         else:
             self.shots = self.get_shots(predictions_ffl)
 
-        predictions = []
+        arguments = []
         for prediction_ffl in tqdm(predictions_ffl):
             for shot in self.shots:
                 if shot.image+".shp" == prediction_ffl or shot.image+".gpkg" == prediction_ffl:
-                    predictions.append(Prediction(shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt, self.emprise))
+                    arguments.append([shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt, self.emprise])
 
-        self.predictions = predictions
-
-        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
-            # On lance toutes les tâches
-            futures = [executor.submit(load_predictions, p) for p in self.predictions]
+        
+        cs = int(len(arguments)/(10*self.nb_cpus)+1)
             
-            # 3. On récupère les résultats avec tqdm pour la barre de progression
-            results = []
-            for f in tqdm(as_completed(futures), total=len(futures)):
-                results.append(f.result())
+        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+            results = list(tqdm(
+            executor.map(create_predictions, arguments, chunksize=cs), 
+            total=len(arguments),
+            desc="Chargement des prédictions"
+        ))
                 
         # On met à jour la liste des prédictions avec les versions lissées
         self.predictions = results
@@ -223,18 +228,16 @@ class SamonGouttiere:
         """
         Lisse les géométries de chaque polygone en parallèle
         """
-        print("Lissage de la géométrie en parallèle")
         os.makedirs(os.path.join(self.path_output, "gouttieres", "nettoyage"), exist_ok=True)
 
-
-        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
-            # On lance toutes les tâches
-            futures = [executor.submit(traiter_lissage, p) for p in self.predictions]
+        cs = int(len(self.predictions)/(10*self.nb_cpus)+1)
             
-            # 3. On récupère les résultats avec tqdm pour la barre de progression
-            results = []
-            for f in tqdm(as_completed(futures), total=len(futures)):
-                results.append(f.result())
+        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+            results = list(tqdm(
+            executor.map(traiter_lissage, self.predictions, chunksize=cs), 
+            total=len(self.predictions),
+            desc="Lissage des géométries"
+        ))
                 
         # On met à jour la liste des prédictions avec les versions lissées
         self.predictions = results
