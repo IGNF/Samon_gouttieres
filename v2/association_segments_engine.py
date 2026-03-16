@@ -9,6 +9,7 @@ from v2.groupe_segments import GroupeSegments
 from shapely import Point
 from v2.parallelisation import create_segments
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import time
 
 
 def association_parallele(groupe_batiment:GroupeBatiments):
@@ -92,17 +93,19 @@ class AssociationSegmentsEngine:
             groupes_segments += r
         self.groupes_segments = groupes_segments
 
+        dict_groupe_segments = [[] for i in range(GroupeBatiments.identifiant_global)]
+        for groupe_segments in self.groupes_segments:
+            dict_groupe_segments[groupe_segments.id_groupe_batiment].append(groupe_segments)
+
         
         print("On reconstruit les associations cassées par la parallélisation")
         for groupe_batiment in tqdm(self.groupes_batiments):
-            for groupe_segments in self.groupes_segments:
-                if groupe_segments.id_groupe_batiment==groupe_batiment.get_identifiant():
-
-                    for batiment in groupe_batiment.batiments:
-                        for segment_gr in groupe_segments.segments:
-                            for i, segment_bat in enumerate(batiment.segments):
-                                if segment_gr.identifiant==segment_bat.identifiant:
-                                    batiment.segments[i] = segment_gr
+            for groupe_segments in dict_groupe_segments[groupe_batiment.get_identifiant()]:
+                for batiment in groupe_batiment.batiments:
+                    for segment_gr in groupe_segments.segments:
+                        for i, segment_bat in enumerate(batiment.segments):
+                            if segment_gr.identifiant==segment_bat.identifiant:
+                                batiment.segments[i] = segment_gr
 
     @staticmethod
     def premier_appariement(b1:Batiment, b2:Batiment):
