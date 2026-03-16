@@ -1,11 +1,13 @@
 from v2.shot import Shot, MNT
 from v2.batiment import Batiment
+from v2.pateMaison import PateMaison
 import geopandas as gpd
 from typing import List
 from shapely import Polygon
 from tqdm import tqdm
 import os
 import numpy as np
+from shapely.ops import unary_union
 
 class Prediction:
     """
@@ -21,10 +23,12 @@ class Prediction:
         self.path_predictions:str = path_predictions
         self.mnt:MNT = MNT.from_mnt(mnt_global, shot.emprise, f"shot_{shot.image}")
         self.batiments:List[Batiment] = []
+        self.pates_maisons:List[PateMaison] = []
         self.emprise = emprise
         self.emprise_image = self.emprise_to_geom_image(emprise, mnt_global)
 
         self.gdf:gpd.GeoDataFrame = None
+        self.gdf_pate_maisons:gpd.GeoDataFrame = None
         self.read_file()
 
     
@@ -62,6 +66,25 @@ class Prediction:
             if isinstance(geometry, Polygon):
                 batiments.append(Batiment(geometry, self.shot, self.mnt))
         self.batiments = batiments
+        self.create_pate_maisons(gdf)
+
+
+    def create_pate_maisons(self, gdf:gpd.GeoDataFrame):
+        merged = unary_union(gdf.geometry)
+        polygons = list(merged.geoms)
+        for polygon in polygons:
+            self.pates_maisons.append(PateMaison(polygon, self.shot, self.mnt))
+
+
+    def associate_batiment_pate(self):
+        geometries = [pm.geometrie_image.buffer(0.1) for pm in self.pates_maisons]
+        gdf_pates_maisons = gpd.GeoDataFrame({"geometry":geometries, "id":range(len(geometries))})
+        for batiment in self.batiments:
+            pate_maison = gdf_pates_maisons[gdf_pates_maisons.contains(batiment.get_image_geometrie())]
+            if pate_maison.shape[0]!=1:
+                raise ValueError(f"Pas un seul bâtiment : {pate_maison.shape[0]}")
+            pate_maison = pate_maison.iloc[0]
+            self.pates_maisons[pate_maison["id"]].add_batiment(batiment)
     
 
     def lisser_geometries(self):
@@ -92,6 +115,10 @@ class Prediction:
             if batiment.is_valid():
                 batiment.compute_ground_geometry()
 
+    def compute_ground_geometry_pate_maison(self):
+        for pate_maisons in self.pates_maisons:
+            pate_maisons.compute_ground_geometry()
+
 
     def check_in_emprise(self, emprise):
         liste_valide = []
@@ -100,22 +127,41 @@ class Prediction:
                 liste_valide.append(batiment)
         self.batiments = liste_valide
 
+    def check_in_emprise_pate_maisons(self, emprise):
+        liste_valide = []
+        for pm in self.pates_maisons:
+            if pm.geometrie_terrain.within(emprise).any():
+                liste_valide.append(pm)
+        self.pates_maisons = liste_valide
+
 
     def create_geodataframe(self):
         geometries = []
         identifiant = []
         self.batiments_keep = []
+        identifiant_pm = []
 
         for batiment in self.batiments:
             if batiment.is_valid() and not batiment._marque:
                 geometries.append(batiment.get_geometrie_terrain())
                 identifiant.append(batiment.get_identifiant())
                 self.batiments_keep.append(batiment)
+                identifiant_pm.append(batiment.get_groupe_batiment_id())
+        self.gdf = gpd.GeoDataFrame({"id":identifiant, "geometry":geometries, "id_gpm":identifiant_pm})
 
-        self.gdf = gpd.GeoDataFrame({"id":identifiant, "geometry":geometries})
+    def create_geodataframe_pates_maisons(self):
+        geometries = []
+        identifiant = []
+        for pm in self.pates_maisons:
+            geometries.append(pm.get_geometrie_terrain())
+            identifiant.append(pm.get_identifiant())
+        self.gdf_pate_maisons = gpd.GeoDataFrame({"id":identifiant, "geometry":geometries})
 
     def get_geodataframe(self)->gpd.GeoDataFrame:
         return self.gdf
+    
+    def get_geodataframe_pate_maison(self)->gpd.GeoDataFrame:
+        return self.gdf_pate_maisons
     
     def delete_batiments_invalides(self)->None:
         batiments:List[Batiment] = []
@@ -127,8 +173,14 @@ class Prediction:
     def get_batiment_i(self, i:int)->Batiment:
         return self.batiments_keep[i]
     
+    def get_pate_maison_i(self, i:int)->PateMaison:
+        return self.pates_maisons[i]
+    
     def get_batiments(self):
         return self.batiments
+    
+    def get_pates_maisons(self):
+        return self.pates_maisons
     
 
     def export_geometry_terrain(self, dir_path:str):
@@ -149,6 +201,20 @@ class Prediction:
 
         gdf = gpd.GeoDataFrame({"id":identifiant, "id_bati":identifiant_batiment, "z_mean":z_mean, "nb_images":nb_images, "methode":methode, "geometry":geometries}, crs="EPSG:2154")
         gdf.to_file(os.path.join(dir_path, self.get_image_name()+"_proj.gpkg"))
+
+    def export_pate_maison_geometry_terrain(self, dir_path:str):
+        geometries = []
+        identifiant = []
+        identifiant_gpm = []
+
+        for pm in self.pates_maisons:
+            geometries.append(pm.get_geometrie_terrain())
+            identifiant.append(pm.get_identifiant())
+            identifiant_gpm.append(pm.get_id_groupe_pate_maison())
+
+        gdf = gpd.GeoDataFrame({"id":identifiant, "id_groupe_pm":identifiant_gpm, "geometry":geometries}, crs="EPSG:2154")
+        gdf.to_file(os.path.join(dir_path, self.get_image_name()+"_proj.gpkg"))
+    
 
     def export_segment_geometry_terrain(self, dir_path:str):
         geometries = []

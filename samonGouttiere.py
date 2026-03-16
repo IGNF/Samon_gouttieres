@@ -4,6 +4,7 @@ from v2.shot import MNT, RAF, Shot, Calibration, ShotPompei, ShotOriente
 from v2.prediction import Prediction
 from typing import List
 from lxml import etree
+from v2.association_pate_maisons_engine import AssociationPateMaisonEngine
 from v2.association_batiment_engine import AssociationBatimentEngine
 from v2.association_segments_engine import AssociationSegmentsEngine
 from v2.groupe_batiments import GroupeBatiments
@@ -16,7 +17,7 @@ from shapely import Polygon
 from tqdm import tqdm
 import time
 import warnings
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor
 import os
 import multiprocessing
 multiprocessing.set_start_method('spawn', force=True)
@@ -184,6 +185,7 @@ class SamonGouttiere:
         tic = time.time()
         self.load()
         self.lisser_geometries()
+        self.association_pate_maisons()
         self.association_bati()
         self.association_segments()
         self.calculer_intersections()
@@ -223,6 +225,9 @@ class SamonGouttiere:
         # On met à jour la liste des prédictions avec les versions lissées
         self.predictions = results
 
+        for prediction in self.predictions:
+            prediction.associate_batiment_pate()
+
 
     def lisser_geometries(self):
         """
@@ -241,6 +246,15 @@ class SamonGouttiere:
                 
         # On met à jour la liste des prédictions avec les versions lissées
         self.predictions = results
+
+    
+    def association_pate_maisons(self):
+        association_pate_maison_engine = AssociationPateMaisonEngine(self.predictions, self.emprise, self.nb_cpus)
+        association_pate_maison_engine.run()
+
+        os.makedirs(os.path.join(self.path_output, "gouttieres", "association_pate_maisons"), exist_ok=True)
+        for prediction in self.predictions:
+            prediction.export_pate_maison_geometry_terrain(os.path.join(self.path_output, "gouttieres", "association_pate_maisons"))
 
 
     def association_bati(self):

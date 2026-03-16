@@ -41,6 +41,8 @@ class Batiment:
         self.groupe_batiment_nb_images_z_estim = None
         self.groupe_batiment_methode_estimation_hauteur = None
 
+        self.groupe_pate_maison_identifiant = None
+
         # Calcule pour chaque point de la géométrie le vecteur directeur entre le sommet de prise de vue et ce point
         self.du = self.compute_u()
 
@@ -61,6 +63,12 @@ class Batiment:
         l = np.array(l)
         du = self.shot.image_to_bundle(c, l)
         return du
+    
+    def set_groupe_pate_maison_identifiant(self, id):
+        self.groupe_pate_maison_identifiant = id
+
+    def get_groupe_pate_maison_identifiant(self):
+        return self.groupe_pate_maison_identifiant
     
     def lisser_geometries(self):
         """
