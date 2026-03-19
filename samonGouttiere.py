@@ -225,9 +225,6 @@ class SamonGouttiere:
         # On met à jour la liste des prédictions avec les versions lissées
         self.predictions = results
 
-        for prediction in self.predictions:
-            prediction.associate_batiment_pate()
-
 
     def lisser_geometries(self):
         """
@@ -250,7 +247,19 @@ class SamonGouttiere:
     
     def association_pate_maisons(self):
         association_pate_maison_engine = AssociationPateMaisonEngine(self.predictions, self.emprise, self.nb_cpus)
-        association_pate_maison_engine.run()
+        self.groupes_pates_maisons = association_pate_maison_engine.run()
+
+        # On doit refaire les liens car ils ont disparu avec la parallélisation
+        for prediction in self.predictions:
+            prediction.pates_maisons = []
+            prediction.batiments = []
+            for groupe_pate_maison in self.groupes_pates_maisons:
+                for gpm in groupe_pate_maison.pates_maisons:
+                    if gpm.shot.image == prediction.shot.image:
+                        prediction.pates_maisons.append(gpm)
+                        for bati in gpm.batiments:
+                            prediction.batiments.append(bati)
+                            
 
         os.makedirs(os.path.join(self.path_output, "gouttieres", "association_pate_maisons"), exist_ok=True)
         for prediction in self.predictions:

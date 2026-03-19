@@ -71,7 +71,10 @@ class Prediction:
 
     def create_pate_maisons(self, gdf:gpd.GeoDataFrame):
         merged = unary_union(gdf.geometry)
-        polygons = list(merged.geoms)
+        if isinstance(merged, Polygon):
+            polygons = [merged]
+        else:
+            polygons = list(merged.geoms)
         for polygon in polygons:
             self.pates_maisons.append(PateMaison(polygon, self.shot, self.mnt))
 
@@ -123,14 +126,14 @@ class Prediction:
     def check_in_emprise(self, emprise):
         liste_valide = []
         for batiment in self.batiments:
-            if batiment.geometrie_terrain.within(emprise).any():
+            if batiment.geometrie_terrain is not None and batiment.geometrie_terrain.within(emprise).any():
                 liste_valide.append(batiment)
         self.batiments = liste_valide
 
     def check_in_emprise_pate_maisons(self, emprise):
         liste_valide = []
         for pm in self.pates_maisons:
-            if pm.geometrie_terrain.within(emprise).any():
+            if pm.geometrie_terrain.intersects(emprise).any():
                 liste_valide.append(pm)
         self.pates_maisons = liste_valide
 

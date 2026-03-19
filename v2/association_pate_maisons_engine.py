@@ -2,12 +2,10 @@ from typing import List
 from v2.prediction import Prediction
 from tqdm import tqdm
 import geopandas as gpd
-from v2.groupe_batiments import GroupeBatiments
 from v2.groupe_pate_maisons import GroupePatesMaisons
 import numpy as np
-from v2.shot import MNT
-from v2.parallelisation import compute_estim_z
 from concurrent.futures import ProcessPoolExecutor
+from v2.parallelisation import compute_pate_maison_ground_geometrie
 
 class AssociationPateMaisonEngine:
 
@@ -24,12 +22,17 @@ class AssociationPateMaisonEngine:
 
 
 
-    def run(self)->List[GroupeBatiments]:
+    def run(self)->List[GroupePatesMaisons]:
 
-
-
-        for prediction in tqdm(self.predictions, desc="Calcul des géométries terrains des pâtés de maisons"):
-            prediction.compute_ground_geometry_pate_maison()
+        cs = int(len(self.predictions)/(10*self.nb_cpus)+1)
+            
+        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+            results = list(tqdm(
+            executor.map(compute_pate_maison_ground_geometrie, self.predictions, chunksize=cs), 
+            total=len(self.predictions),
+            desc="Calcul des géométries terrain"
+        ))        
+        self.predictions = results
 
         if self.emprise is not None:
             print("On ne conserve que les bâtiments à l'intérieur de l'emprise")
@@ -123,38 +126,4 @@ class AssociationPateMaisonEngine:
                     groupe_pates_maisons.append(GroupePatesMaisons(pms))
         
         return groupe_pates_maisons
-    
-    def get_mnt(self)->MNT:
-        return self.predictions[0].mnt
-    
-
-    def compute_z_mean(self):
-        """
-        On calcule le z moyen de chaque groupe de bâtiment, et on met à jour la projection au sol des bâtiments
-        """
-
-        cs = int(len(self.groupe_batiments)/(10*self.nb_cpus)+1)
-            
-        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
-            results = list(tqdm(
-            executor.map(compute_estim_z, self.groupe_batiments, chunksize=cs), 
-            total=len(self.groupe_batiments),
-            desc="Estimation des hauteurs de bâtiment"
-        ))
-
-        self.groupe_batiments = results
-
-        statistiques = {
-            "Barycentre":0,
-            "Points":0,
-            "Samon":0,
-            "Echec":0
-        }
-
-        for groupe in tqdm(self.groupe_batiments):
-            statistiques[groupe.get_methode_estimation_hauteur()] += 1
-            
-        print("Méthode utilisée pour estimer la hauteur des bâtiments")
-        for key, value in statistiques.items():
-            print(f"{key} : {value}")
 

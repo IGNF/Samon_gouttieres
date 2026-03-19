@@ -27,4 +27,9 @@ def load_predictions(prediction:Prediction)->Prediction:
 def create_predictions(args)->Prediction:
     shot, path, mnt, emprise = args
     prediction = Prediction(shot, path, mnt, emprise)
+    prediction.associate_batiment_pate()
+    return prediction
+
+def compute_pate_maison_ground_geometrie(prediction:Prediction)->Prediction:
+    prediction.compute_ground_geometry_pate_maison()
     return prediction
