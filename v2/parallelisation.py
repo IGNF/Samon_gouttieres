@@ -41,3 +41,7 @@ def compute_pate_maisons_association(args):
     predictions:List[Prediction] = args[1]
     prediction.association_pates_maisons(predictions)
     return prediction
+
+def compute_batiment_association(groupe_pates_maisons:GroupePatesMaisons):
+    groupe_pates_maisons.association()
+    return groupe_pates_maisons

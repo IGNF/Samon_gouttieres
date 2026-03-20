@@ -7,7 +7,7 @@ from v2.groupe_pate_maisons import GroupePatesMaisons
 import numpy as np
 from v2.batiment import Batiment
 from v2.shot import MNT, RAF, Shot
-from v2.parallelisation import compute_ground_geometrie, compute_estim_z
+from v2.parallelisation import compute_ground_geometrie, compute_estim_z, compute_batiment_association
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
 
@@ -100,8 +100,14 @@ class AssociationBatimentEngine:
 
 
     def association(self):
-        for gpm in self.groupes_pates_maisons:
-            gpm.association()
+        cs = int(len(self.groupes_pates_maisons)/(10*self.nb_cpus)+1)
+        with multiprocessing.Pool(processes=self.nb_cpus) as pool:
+            results = list(tqdm(
+            pool.imap_unordered(compute_batiment_association, self.groupes_pates_maisons, chunksize=cs), 
+            total=len(self.groupes_pates_maisons),
+            desc="Calcul des associations de batiments"
+        ))        
+        self.groupes_pates_maisons = results
 
 
     def graphe_connexe(self)->List[GroupeBatiments]:
