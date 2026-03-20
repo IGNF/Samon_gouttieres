@@ -37,17 +37,14 @@ class AssociationPateMaisonEngine:
         self.predictions = results
 
         if self.emprise is not None:
-            print("On ne conserve que les bâtiments à l'intérieur de l'emprise")
             for prediction in tqdm(self.predictions, desc="Filtrage des pâtés de maisons par emprise terrain"):
                 prediction.check_in_emprise_pate_maisons(self.emprise)
 
         
-        print("Calcul des géoséries")
         # Pour chaque prédictions du FFL, on crée des tableaux numpy qui permettront d'accélérer le calcul pour associer des bâtiments
-        for prediction in tqdm(self.predictions):
+        for prediction in tqdm(self.predictions, desc="Calcul des géoséries"):
             prediction.create_geodataframe_pates_maisons()
 
-        print("Calcul des associations")
         # Pour chaque bâtiment, on cherche sur les autres prédictions le bâtiment avec lequel il se superpose le plus
         self.association()
         pms = [None for i in range(PateMaison.identifiant_global+1)]

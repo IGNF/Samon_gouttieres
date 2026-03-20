@@ -209,7 +209,7 @@ class SamonGouttiere:
             self.shots = self.get_shots(predictions_ffl)
 
         arguments = []
-        for prediction_ffl in tqdm(predictions_ffl):
+        for prediction_ffl in tqdm(predictions_ffl, desc="Chargement des images"):
             for shot in self.shots:
                 if shot.image+".shp" == prediction_ffl or shot.image+".gpkg" == prediction_ffl:
                     arguments.append([shot, os.path.join(self.get_predictions_ffl_dir(), prediction_ffl), self.mnt, self.emprise])
@@ -274,13 +274,15 @@ class SamonGouttiere:
         association_batiments_engine = AssociationBatimentEngine(self.groupes_pates_maisons, self.emprise, self.pompei, self.nb_cpus, self.get_pva_path(), self.mnt, self.raf, self.shots)
         self.groupe_batiments = association_batiments_engine.run()
 
-        # On doit refaire les liens car ils ont disparu avec la parallélisation
+        batiments = [None for i in range(Batiment.identifiant_global)]
+        for groupe_batiment in self.groupe_batiments:
+            for batiment in groupe_batiment.batiments:
+                batiments[batiment.identifiant] = batiment
+
         for prediction in self.predictions:
-            prediction.batiments = []
-            for groupe_batiment in self.groupe_batiments:
-                for batiment in groupe_batiment.batiments:
-                    if batiment.shot.image == prediction.shot.image:
-                        prediction.batiments.append(batiment)
+            new_batiments = []
+            for batiment in prediction.batiments:
+                new_batiments.append(batiments[batiment.identifiant])
 
         os.makedirs(os.path.join(self.path_output, "gouttieres", "association_batiment"), exist_ok=True)
         for prediction in self.predictions:
@@ -292,13 +294,24 @@ class SamonGouttiere:
         association_segments_engine = AssociationSegmentsEngine(self.groupe_batiments, self.nb_cpus)
         self.groupe_segments, self.groupe_batiments = association_segments_engine.run()
 
-        # On doit refaire les liens car ils ont disparu avec la parallélisation
+        
+        batiments = [None for i in range(Batiment.identifiant_global)]
+        for groupe_batiment in self.groupe_batiments:
+            for batiment in groupe_batiment.batiments:
+                batiments[batiment.identifiant] = batiment
+
         for prediction in self.predictions:
-            prediction.batiments = []
-            for groupe_batiment in self.groupe_batiments:
-                for batiment in groupe_batiment.batiments:
-                    if batiment.shot.image == prediction.shot.image:
-                        prediction.batiments.append(batiment)
+            new_batiments = []
+            for batiment in prediction.batiments:
+                new_batiments.append(batiments[batiment.identifiant])
+        
+        ## On doit refaire les liens car ils ont disparu avec la parallélisation
+        #for prediction in tqdm(self.predictions, desc="Réparation liens association segments"):
+        #    prediction.batiments = []
+        #    for groupe_batiment in self.groupe_batiments:
+        #        for batiment in groupe_batiment.batiments:
+        #            if batiment.shot.image == prediction.shot.image:
+        #                prediction.batiments.append(batiment)
         
         os.makedirs(os.path.join(self.path_output, "gouttieres", "association_segments"), exist_ok=True)
         for prediction in self.predictions:

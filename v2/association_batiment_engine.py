@@ -53,12 +53,10 @@ class AssociationBatimentEngine:
                 gpm.check_in_emprise(self.emprise)
 
         
-        print("Calcul des géoséries")
         # Pour chaque prédictions du FFL, on crée des tableaux numpy qui permettront d'accélérer le calcul pour associer des bâtiments
-        for gpm in tqdm(self.groupes_pates_maisons):
+        for gpm in tqdm(self.groupes_pates_maisons, desc="Calcul des géoséries"):
             gpm.create_geodataframe()
 
-        print("Calcul des associations")
         # Pour chaque bâtiment, on cherche sur les autres prédictions le bâtiment avec lequel il se superpose le plus
         self.association()
 
