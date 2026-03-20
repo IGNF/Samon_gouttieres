@@ -200,7 +200,9 @@ class SamonGouttiere:
         """
         Charge les données
         """
+        print("Chargement du MNT...")
         self.mnt = MNT.load_mnt(self.get_mnt_path(), self.emprise)
+        print("Chargement du MNT terminé")
         self.raf = RAF(self.get_raf_path())
         predictions_ffl = self.get_predictions_ffl()
         if self.pompei:
@@ -304,14 +306,6 @@ class SamonGouttiere:
             new_batiments = []
             for batiment in prediction.batiments:
                 new_batiments.append(batiments[batiment.identifiant])
-        
-        ## On doit refaire les liens car ils ont disparu avec la parallélisation
-        #for prediction in tqdm(self.predictions, desc="Réparation liens association segments"):
-        #    prediction.batiments = []
-        #    for groupe_batiment in self.groupe_batiments:
-        #        for batiment in groupe_batiment.batiments:
-        #            if batiment.shot.image == prediction.shot.image:
-        #                prediction.batiments.append(batiment)
         
         os.makedirs(os.path.join(self.path_output, "gouttieres", "association_segments"), exist_ok=True)
         for prediction in self.predictions:
