@@ -5,6 +5,7 @@ from typing import List
 from v2.shot import Shot, MNT
 from shapely.validation import make_valid
 from v2.batiment import Batiment
+import geopandas as gpd
 
 
 
@@ -26,6 +27,7 @@ class PateMaison:
         self.id_groupe_pate_maison:int = None
 
         self._marque = False
+        self.gdf:gpd.GeoDataFrame = None
 
     def add_batiment(self, batiment):
         self.batiments.append(batiment)
@@ -38,6 +40,14 @@ class PateMaison:
 
     def get_id_groupe_pate_maison(self):
         return self.id_groupe_pate_maison
+    
+
+    def compute_ground_geometry_bati(self):
+        for bati in self.batiments:
+            bati.compute_ground_geometry()
+
+    def get_batiment_i(self, i)->Batiment:
+        return self.batiments[i]
 
 
     def compute_ground_geometry(self, estim_z=None)->None:
@@ -77,3 +87,19 @@ class PateMaison:
 
     def get_homologues(self)->List[PateMaison]:
         return self.homologues
+    
+    def check_in_emprise(self, emprise):
+        liste_valide = []
+        for batiment in self.batiments:
+            if batiment.geometrie_terrain is not None and batiment.geometrie_terrain.within(emprise).any():
+                liste_valide.append(batiment)
+        self.batiments = liste_valide
+
+    def create_geodataframe(self):
+        geometries = []
+        for batiment in self.batiments:
+            geometries.append(batiment.geometrie_terrain)
+        self.gdf = gpd.GeoDataFrame({"geometry":geometries})
+
+    def get_geodataframe(self):
+        return self.gdf

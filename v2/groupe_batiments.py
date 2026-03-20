@@ -347,10 +347,6 @@ class GroupeBatiments:
         area_fermee = self.get_geometrie_fermee().area
         area_max = max(areas)
         ratio = area_fermee / area_max
-        if self.get_identifiant()==id_debug:
-            print(self.get_geometrie_fermee())
-            print(areas)
-            print("area_fermee, area_mediane, ratio : ", area_fermee, area_max, ratio)
         if ratio < 0.2:
             return False
         return True

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from v2.shot import Shot, MNT
 from v2.batiment import Batiment
 from v2.pateMaison import PateMaison
@@ -8,6 +9,7 @@ from tqdm import tqdm
 import os
 import numpy as np
 from shapely.ops import unary_union
+
 
 class Prediction:
     """
@@ -238,3 +240,36 @@ class Prediction:
 
         gdf = gpd.GeoDataFrame({"id":identifiant, "id_segment":identifiant_segment, "id_bati":identifiant_bati, "voisin_1":voisin_1, "voisin_2":voisin_2, "geometry":geometries}, crs="EPSG:2154")
         gdf.to_file(os.path.join(dir_path, self.get_image_name()+"_proj.gpkg"))
+
+
+    def association_pates_maisons(self, predictions:List[Prediction]):
+        geoserie_1:gpd.GeoDataFrame = self.get_geodataframe_pate_maison().geometry
+        # On parcourt les autres shapefile
+        for prediction_2 in predictions:
+            if self.shot.image!=prediction_2.shot.image:
+                # On récupère la géosérie du deuxième shapefile
+                
+                geoserie_2:gpd.GeoDataFrame = prediction_2.get_geodataframe_pate_maison().geometry
+                if geoserie_1.shape[0]==0 or geoserie_2.shape[0]==0:
+                    continue
+                # On récupère les intersections entre les géométries terrain des bâtiments
+                intersections = geoserie_2.sindex.query(geoserie_1, predicate="intersects")
+                for i in range(geoserie_1.shape[0]):
+                    
+                    # Pour chaque bâtiment, on récupère parmi les bâtiments qu'il intersecte celui avec lequel il partage la plus grande aire
+                    pm_1 = self.get_pate_maison_i(i)
+                    
+                    pm_1_emprise = pm_1.get_geometrie_terrain()
+                    area_max = 0
+                    id_max = None
+                    indices = np.where(intersections[0,:]==i)[0]
+                    for j in range(indices.shape[0]):
+                        indice = indices[j]                                
+                        pm_2_emprise = prediction_2.get_pate_maison_i(intersections[1,indice])
+                        aire_commune = pm_1_emprise.intersection(pm_2_emprise.get_geometrie_terrain()).area
+                        if aire_commune > area_max:
+                            area_max = aire_commune
+                            id_max = pm_2_emprise
+                    if id_max is not None:
+                        pm_1.add_homologue(id_max.identifiant)
+                        id_max.add_homologue(pm_1.identifiant)

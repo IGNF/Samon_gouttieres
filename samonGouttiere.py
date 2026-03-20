@@ -226,6 +226,17 @@ class SamonGouttiere:
                 
         # On met à jour la liste des prédictions avec les versions lissées
         self.predictions = results
+        compte_pm = 0
+        compte_bati = 0
+        for prediction in self.predictions:
+            for pm in prediction.pates_maisons:
+                pm.identifiant = compte_pm
+                compte_pm += 1
+                for bati in pm.batiments:
+                    bati.identifiant = compte_bati
+                    compte_bati += 1
+        PateMaison.identifiant_global = compte_pm
+        Batiment.identifiant_global = compte_bati
 
 
     def lisser_geometries(self):
@@ -249,16 +260,7 @@ class SamonGouttiere:
     
     def association_pate_maisons(self):
         association_pate_maison_engine = AssociationPateMaisonEngine(self.predictions, self.emprise, self.nb_cpus)
-        self.groupes_pates_maisons = association_pate_maison_engine.run()
-        pms = [None for i in range(PateMaison.identifiant_global+1)]
-        for groupe_pate_maison in self.groupes_pates_maisons:
-            for pm in groupe_pate_maison.pates_maisons:
-                pms[pm.identifiant] = pm
-
-
-        for prediction in self.predictions:
-            new_pates_maisons = [pms[pm.identifiant] for pm in prediction.pates_maisons]
-            prediction.pates_maisons = new_pates_maisons                            
+        self.groupes_pates_maisons, self.predictions = association_pate_maison_engine.run()
 
         os.makedirs(os.path.join(self.path_output, "gouttieres", "association_pate_maisons"), exist_ok=True)
         for prediction in self.predictions:
@@ -269,7 +271,7 @@ class SamonGouttiere:
         """
         Associer les bâtiments entre eux
         """
-        association_batiments_engine = AssociationBatimentEngine(self.predictions, self.emprise, self.pompei, self.nb_cpus, self.get_pva_path(), self.mnt, self.raf, self.shots)
+        association_batiments_engine = AssociationBatimentEngine(self.groupes_pates_maisons, self.emprise, self.pompei, self.nb_cpus, self.get_pva_path(), self.mnt, self.raf, self.shots)
         self.groupe_batiments = association_batiments_engine.run()
 
         # On doit refaire les liens car ils ont disparu avec la parallélisation

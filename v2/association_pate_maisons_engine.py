@@ -5,7 +5,8 @@ import geopandas as gpd
 from v2.groupe_pate_maisons import GroupePatesMaisons
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
-from v2.parallelisation import compute_pate_maison_ground_geometrie
+from v2.parallelisation import compute_pate_maison_ground_geometrie, compute_pate_maisons_association
+from v2.pateMaison import PateMaison
 import multiprocessing
 
 class AssociationPateMaisonEngine:
@@ -49,58 +50,57 @@ class AssociationPateMaisonEngine:
         print("Calcul des associations")
         # Pour chaque bâtiment, on cherche sur les autres prédictions le bâtiment avec lequel il se superpose le plus
         self.association()
+        pms = [None for i in range(PateMaison.identifiant_global+1)]
+        for prediction in self.predictions:
+            for pm in prediction.pates_maisons:
+                if pms[pm.identifiant] is None:
+                    pms[pm.identifiant] = pm
+                else:
+                    pm0 = pms[pm.identifiant]
+                    for homologue_id in pm.get_homologues():
+                        if homologue_id not in pm0.get_homologues():
+                            pm0.add_homologue(homologue_id)
+        
+        for pm in pms:
+            if pm is None:
+                continue
+            new_homologues = []
+            for homologue_id in pm.get_homologues():
+                new_homologues.append(pms[homologue_id])
+            pm.homologues = new_homologues
+
+        for prediction in self.predictions:
+            new_pm = []
+            for pm in prediction.pates_maisons:
+                new_pm.append(pms[pm.identifiant])
+            prediction.pates_maisons = new_pm
+            
+
 
         # On crée le graphe connexe qui regroupe tous les bâtiments qui ont été associés
         self.groupes_pates_maisons = self.graphe_connexe()
 
-        return self.groupes_pates_maisons
+        return self.groupes_pates_maisons, self.predictions
    
 
     def init(self):
         self.groupe_batiments = []
-        
         for prediction in tqdm(self.predictions):
             prediction.delete_homol()
 
 
 
     def association(self):
-        # On parcourt les shapefile
-        for prediction_1 in tqdm(self.predictions):
-            
-            # On parcourt les autres shapefile
-            for prediction_2 in self.predictions:
-                if prediction_1!=prediction_2:
-                    # On récupère la géosérie du deuxième shapefile
-                    geoserie_1:gpd.GeoDataFrame = prediction_1.get_geodataframe_pate_maison().geometry
-                    geoserie_2:gpd.GeoDataFrame = prediction_2.get_geodataframe_pate_maison().geometry
 
-                    if geoserie_1.shape[0]==0 or geoserie_2.shape[0]==0:
-                        continue
-
-                    # On récupère les intersections entre les géométries terrain des bâtiments
-                    intersections = geoserie_2.sindex.query(geoserie_1, predicate="intersects")
-
-                    for i in range(geoserie_1.shape[0]):
-                        
-                        # Pour chaque bâtiment, on récupère parmi les bâtiments qu'il intersecte celui avec lequel il partage la plus grande aire
-                        pm_1 = prediction_1.get_pate_maison_i(i)
-                        
-                        pm_1_emprise = pm_1.get_geometrie_terrain()
-                        area_max = 0
-                        id_max = None
-
-                        indices = np.where(intersections[0,:]==i)[0]
-                        for j in range(indices.shape[0]):
-                            indice = indices[j]                                
-                            pm_2_emprise = prediction_2.get_pate_maison_i(intersections[1,indice])
-                            aire_commune = pm_1_emprise.intersection(pm_2_emprise.get_geometrie_terrain()).area
-                            if aire_commune > area_max:
-                                area_max = aire_commune
-                                id_max = pm_2_emprise
-                        if id_max is not None:
-                            pm_1.add_homologue(id_max)
-                            id_max.add_homologue(pm_1)
+        cs = int(len(self.predictions)/(10*self.nb_cpus)+1)
+        arguments = [[prediction, self.predictions] for prediction in self.predictions]
+        with multiprocessing.Pool(processes=self.nb_cpus) as pool:
+            results = list(tqdm(
+            pool.imap_unordered(compute_pate_maisons_association, arguments, chunksize=cs), 
+            total=len(arguments),
+            desc="Calcul des associations de pâtés de maisons"
+        ))        
+        self.predictions = results    
 
 
     def graphe_connexe(self)->List[GroupePatesMaisons]:

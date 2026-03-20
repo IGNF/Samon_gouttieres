@@ -3,7 +3,9 @@ from v2.prediction import Prediction
 from tqdm import tqdm
 import geopandas as gpd
 from v2.groupe_batiments import GroupeBatiments
+from v2.groupe_pate_maisons import GroupePatesMaisons
 import numpy as np
+from v2.batiment import Batiment
 from v2.shot import MNT, RAF, Shot
 from v2.parallelisation import compute_ground_geometrie, compute_estim_z
 from concurrent.futures import ProcessPoolExecutor
@@ -15,8 +17,8 @@ class AssociationBatimentEngine:
     Algorithme pour associer les bâtiments entre eux
     """
 
-    def __init__(self, predictions:List[Prediction], emprise:gpd.GeoDataFrame, pompei:bool, nb_cpus:int, pva_path:str, mnt:MNT, raf:RAF, shots:List[Shot]):
-        self.predictions:List[Prediction] = predictions
+    def __init__(self, groupes_pates_maisons:List[GroupePatesMaisons], emprise:gpd.GeoDataFrame, pompei:bool, nb_cpus:int, pva_path:str, mnt:MNT, raf:RAF, shots:List[Shot]):
+        self.groupes_pates_maisons:List[GroupePatesMaisons] = groupes_pates_maisons
 
         self.groupe_batiments:List[GroupeBatiments] = None
 
@@ -35,30 +37,50 @@ class AssociationBatimentEngine:
 
     def run(self)->List[GroupeBatiments]:
 
-        cs = int(len(self.predictions)/(10*self.nb_cpus)+1)
+        cs = int(len(self.groupes_pates_maisons)/(10*self.nb_cpus)+1)
             
         with multiprocessing.Pool(processes=self.nb_cpus) as pool:
             results = list(tqdm(
-            pool.imap_unordered(compute_ground_geometrie, self.predictions, chunksize=cs), 
-            total=len(self.predictions),
+            pool.imap_unordered(compute_ground_geometrie, self.groupes_pates_maisons, chunksize=cs), 
+            total=len(self.groupes_pates_maisons),
             desc="Calcul des géométries terrain"
         ))
-        self.predictions = results
+        self.groupes_pates_maisons = results
 
         if self.emprise is not None:
             print("On ne conserve que les bâtiments à l'intérieur de l'emprise")
-            for prediction in tqdm(self.predictions):
-                prediction.check_in_emprise(self.emprise)
+            for gpm in tqdm(self.groupes_pates_maisons):
+                gpm.check_in_emprise(self.emprise)
 
         
         print("Calcul des géoséries")
         # Pour chaque prédictions du FFL, on crée des tableaux numpy qui permettront d'accélérer le calcul pour associer des bâtiments
-        for prediction in tqdm(self.predictions):
-            prediction.create_geodataframe()
+        for gpm in tqdm(self.groupes_pates_maisons):
+            gpm.create_geodataframe()
 
         print("Calcul des associations")
         # Pour chaque bâtiment, on cherche sur les autres prédictions le bâtiment avec lequel il se superpose le plus
         self.association()
+
+        batiments = [None for i in range(Batiment.identifiant_global+1)]
+        for gpm in self.groupes_pates_maisons:
+            for pm in gpm.pates_maisons:
+                for batiment in pm.batiments:
+                    if batiments[batiment.identifiant] is None:
+                        batiments[batiment.identifiant] = batiment
+                    else:
+                        batiment0 = batiments[batiment.identifiant]
+                        for homologue_id in batiment.get_homologues():
+                            if homologue_id not in batiment0.get_homologues():
+                                batiment0.add_homologue(homologue_id)
+        
+        for batiment in batiments:
+            if batiment is None:
+                continue
+            new_homologues = []
+            for homologue_id in batiment.get_homologues():
+                new_homologues.append(batiments[homologue_id])
+            batiment.batiments_homologues = new_homologues
 
         # On crée le graphe connexe qui regroupe tous les bâtiments qui ont été associés
         self.groupe_batiments = self.graphe_connexe()
@@ -77,44 +99,9 @@ class AssociationBatimentEngine:
             prediction.delete_homol()
 
 
-
     def association(self):
-        # On parcourt les shapefile
-        for prediction_1 in tqdm(self.predictions):
-            
-            # On parcourt les autres shapefile
-            for prediction_2 in self.predictions:
-                if prediction_1!=prediction_2:
-                    # On récupère la géosérie du deuxième shapefile
-                    geoserie_1:gpd.GeoDataFrame = prediction_1.get_geodataframe().geometry
-                    geoserie_2:gpd.GeoDataFrame = prediction_2.get_geodataframe().geometry
-
-                    if geoserie_1.shape[0]==0 or geoserie_2.shape[0]==0:
-                        continue
-
-                    # On récupère les intersections entre les géométries terrain des bâtiments
-                    intersections = geoserie_2.sindex.query(geoserie_1, predicate="intersects")
-
-                    for i in range(geoserie_1.shape[0]):
-                        
-                        # Pour chaque bâtiment, on récupère parmi les bâtiments qu'il intersecte celui avec lequel il partage la plus grande aire
-                        bati_1 = prediction_1.get_batiment_i(i)
-                        
-                        bati_1_emprise = bati_1.get_geometrie_terrain()
-                        area_max = 0
-                        id_max = None
-
-                        indices = np.where(intersections[0,:]==i)[0]
-                        for j in range(indices.shape[0]):
-                            indice = indices[j]                                
-                            bati_2_emprise = prediction_2.get_batiment_i(intersections[1,indice])
-                            aire_commune = bati_1_emprise.intersection(bati_2_emprise.get_geometrie_terrain()).area
-                            if aire_commune > area_max and bati_1.get_groupe_pate_maison_identifiant()==bati_2_emprise.get_groupe_pate_maison_identifiant():
-                                area_max = aire_commune
-                                id_max = bati_2_emprise
-                        if id_max is not None:
-                            bati_1.add_homologue(id_max)
-                            id_max.add_homologue(bati_1)
+        for gpm in self.groupes_pates_maisons:
+            gpm.association()
 
 
     def graphe_connexe(self)->List[GroupeBatiments]:
@@ -122,23 +109,25 @@ class AssociationBatimentEngine:
         On réunit tous les bâtiments qui représentent un même bâtiment dans la réalité
         """
         groupe_batiments = []
-        for prediction in self.predictions:
-            for bati in prediction.get_batiments():
-                if not bati._marque:
-                    batis = [bati]
-                    liste = [bati]
-                    bati._marque = True
+        for gpm in self.groupes_pates_maisons:
+            for pm in gpm.pates_maisons:
+                for bati in pm.batiments:
+                    if not bati._marque:
+                        batis = [bati]
+                        liste = [bati]
+                        bati._marque = True
 
-                    while len(liste) > 0:
-                        b = liste.pop()
-                        for homologue in b.get_homologues():
-                            if not homologue._marque:
-                                homologue._marque = True
-                                if homologue not in liste:
-                                    batis.append(homologue)
-                                    liste.append(homologue)
+                        while len(liste) > 0:
+                            b = liste.pop()
+                            for homologue in b.get_homologues():
+                                if not homologue._marque:
+                                    homologue._marque = True
+                                    if homologue not in liste:
+                                        batis.append(homologue)
+                                        liste.append(homologue)
 
-                    groupe_batiments.append(GroupeBatiments(batis, self.pva_path, prediction.mnt, self.raf, self.shots, self.pompei))
+                        if len(batis)>1:
+                            groupe_batiments.append(GroupeBatiments(batis, self.pva_path, self.mnt, self.raf, self.shots, self.pompei))
         
         return groupe_batiments
     
