@@ -6,6 +6,7 @@ from v2.groupe_pate_maisons import GroupePatesMaisons
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from v2.parallelisation import compute_pate_maison_ground_geometrie
+import multiprocessing
 
 class AssociationPateMaisonEngine:
 
@@ -26,9 +27,9 @@ class AssociationPateMaisonEngine:
 
         cs = int(len(self.predictions)/(10*self.nb_cpus)+1)
             
-        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+        with multiprocessing.Pool(processes=self.nb_cpus) as pool:
             results = list(tqdm(
-            executor.map(compute_pate_maison_ground_geometrie, self.predictions, chunksize=cs), 
+            pool.imap_unordered(compute_pate_maison_ground_geometrie, self.predictions, chunksize=cs), 
             total=len(self.predictions),
             desc="Calcul des géométries terrain"
         ))        

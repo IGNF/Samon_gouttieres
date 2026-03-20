@@ -10,6 +10,7 @@ from shapely import Point
 from v2.parallelisation import create_segments
 from concurrent.futures import ProcessPoolExecutor
 import time
+import multiprocessing
 
 
 def association_parallele(groupe_batiment:GroupeBatiments):
@@ -62,9 +63,9 @@ class AssociationSegmentsEngine:
 
         cs = int(len(self.groupes_batiments)/(10*self.nb_cpus)+1)
             
-        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+        with multiprocessing.Pool(processes=self.nb_cpus) as pool:
             results = list(tqdm(
-            executor.map(create_segments, self.groupes_batiments, chunksize=cs), 
+            pool.imap_unordered(create_segments, self.groupes_batiments, chunksize=cs), 
             total=len(self.groupes_batiments),
             desc="Création des segments pour chaque batiment"
         ))
@@ -81,13 +82,12 @@ class AssociationSegmentsEngine:
 
         cs = int(len(self.groupes_batiments)/(10*self.nb_cpus)+1)
             
-        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+        with multiprocessing.Pool(processes=self.nb_cpus) as pool:
             results = list(tqdm(
-                executor.map(association_parallele, self.groupes_batiments, chunksize=cs), 
+                pool.imap_unordered(association_parallele, self.groupes_batiments, chunksize=cs), 
                 total=len(self.groupes_batiments),
                 desc="Association des segments"
             ))
-            executor.shutdown(wait=False, cancel_futures=True)
         groupes_segments = []
         for r in results:
             groupes_segments += r

@@ -7,6 +7,7 @@ import numpy as np
 from v2.shot import MNT, RAF, Shot
 from v2.parallelisation import compute_ground_geometrie, compute_estim_z
 from concurrent.futures import ProcessPoolExecutor
+import multiprocessing
 
 class AssociationBatimentEngine:
 
@@ -36,9 +37,9 @@ class AssociationBatimentEngine:
 
         cs = int(len(self.predictions)/(10*self.nb_cpus)+1)
             
-        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+        with multiprocessing.Pool(processes=self.nb_cpus) as pool:
             results = list(tqdm(
-            executor.map(compute_ground_geometrie, self.predictions, chunksize=cs), 
+            pool.imap_unordered(compute_ground_geometrie, self.predictions, chunksize=cs), 
             total=len(self.predictions),
             desc="Calcul des géométries terrain"
         ))
@@ -152,9 +153,9 @@ class AssociationBatimentEngine:
 
         cs = int(len(self.groupe_batiments)/(10*self.nb_cpus)+1)
             
-        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+        with multiprocessing.Pool(processes=self.nb_cpus) as pool:
             results = list(tqdm(
-            executor.map(compute_estim_z, self.groupe_batiments, chunksize=cs), 
+            pool.imap_unordered(compute_estim_z, self.groupe_batiments, chunksize=cs), 
             total=len(self.groupe_batiments),
             desc="Estimation des hauteurs de bâtiment"
         ))

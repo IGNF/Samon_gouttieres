@@ -12,6 +12,8 @@ from v2.groupe_segments import GroupeSegments
 from v2.calcul_intersection_engine import CalculIntersectionEngine
 from v2.fermer_batiment_engine import FermerBatimentEngine
 from v2.parallelisation import traiter_lissage, create_predictions
+from v2.pateMaison import PateMaison
+from v2.batiment import Batiment
 import geopandas as gpd
 from shapely import Polygon
 from tqdm import tqdm
@@ -215,9 +217,9 @@ class SamonGouttiere:
         
         cs = int(len(arguments)/(10*self.nb_cpus)+1)
             
-        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+        with multiprocessing.Pool(processes=self.nb_cpus) as pool:
             results = list(tqdm(
-            executor.map(create_predictions, arguments, chunksize=cs), 
+            pool.imap_unordered(create_predictions, arguments, chunksize=cs), 
             total=len(arguments),
             desc="Chargement des prédictions"
         ))
@@ -234,9 +236,9 @@ class SamonGouttiere:
 
         cs = int(len(self.predictions)/(10*self.nb_cpus)+1)
             
-        with ProcessPoolExecutor(max_workers=self.nb_cpus) as executor:
+        with multiprocessing.Pool(processes=self.nb_cpus) as pool:
             results = list(tqdm(
-            executor.map(traiter_lissage, self.predictions, chunksize=cs), 
+            pool.imap_unordered(traiter_lissage, self.predictions, chunksize=cs), 
             total=len(self.predictions),
             desc="Lissage des géométries"
         ))
@@ -248,18 +250,15 @@ class SamonGouttiere:
     def association_pate_maisons(self):
         association_pate_maison_engine = AssociationPateMaisonEngine(self.predictions, self.emprise, self.nb_cpus)
         self.groupes_pates_maisons = association_pate_maison_engine.run()
+        pms = [None for i in range(PateMaison.identifiant_global+1)]
+        for groupe_pate_maison in self.groupes_pates_maisons:
+            for pm in groupe_pate_maison.pates_maisons:
+                pms[pm.identifiant] = pm
 
-        # On doit refaire les liens car ils ont disparu avec la parallélisation
+
         for prediction in self.predictions:
-            prediction.pates_maisons = []
-            prediction.batiments = []
-            for groupe_pate_maison in self.groupes_pates_maisons:
-                for gpm in groupe_pate_maison.pates_maisons:
-                    if gpm.shot.image == prediction.shot.image:
-                        prediction.pates_maisons.append(gpm)
-                        for bati in gpm.batiments:
-                            prediction.batiments.append(bati)
-                            
+            new_pates_maisons = [pms[pm.identifiant] for pm in prediction.pates_maisons]
+            prediction.pates_maisons = new_pates_maisons                            
 
         os.makedirs(os.path.join(self.path_output, "gouttieres", "association_pate_maisons"), exist_ok=True)
         for prediction in self.predictions:
@@ -357,16 +356,17 @@ class SamonGouttiere:
                 methode_estimation_alti.append(groupe_batiment.get_methode_estimation_hauteur())
                 estimation_z.append(groupe_batiment.estim_z)
 
-                delta_z_list = []
-                for point in geom.exterior.coords:
-                    z = self.mnt.get(point[0], point[1])
-                    delta_z = point[2] - z
-                    delta_z_list.append(delta_z[0])
-                delta_z_mean = sum(delta_z_list)/len(delta_z_list)
-                if groupe_batiment.estim_z is not None:
-                    delta_estim.append(groupe_batiment.estim_z - delta_z_mean)
-                else:
-                    delta_estim.append(0)
+                #delta_z_list = []
+                #for point in geom.exterior.coords:
+                #    z = self.mnt.get(point[0], point[1])
+                #    delta_z = point[2] - z
+                #    delta_z_list.append(delta_z[0])
+                #delta_z_mean = sum(delta_z_list)/len(delta_z_list)
+                #if groupe_batiment.estim_z is not None:
+                #    delta_estim.append(groupe_batiment.estim_z - delta_z_mean)
+                #else:
+                #    delta_estim.append(0)
+                delta_estim.append(0)
         d = {"id_bati":identifiant, "methode":methode, "estim_alti":methode_estimation_alti, "estim_z":estimation_z, "delta_estim":delta_estim, "geometry":geometries}
         
         os.makedirs(os.path.join(self.path_output, "gouttieres", "batiments_fermes"), exist_ok=True)
