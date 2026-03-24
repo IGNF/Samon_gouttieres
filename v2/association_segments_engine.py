@@ -8,8 +8,6 @@ import statistics
 from v2.groupe_segments import GroupeSegments
 from shapely import Point
 from v2.parallelisation import create_segments
-from concurrent.futures import ProcessPoolExecutor
-import time
 import multiprocessing
 
 

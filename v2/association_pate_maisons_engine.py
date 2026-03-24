@@ -3,9 +3,7 @@ from v2.prediction import Prediction
 from tqdm import tqdm
 import geopandas as gpd
 from v2.groupe_pate_maisons import GroupePatesMaisons
-import numpy as np
-from concurrent.futures import ProcessPoolExecutor
-from v2.parallelisation import compute_pate_maison_ground_geometrie, compute_pate_maisons_association
+from v2.parallelisation import compute_pate_maison_ground_geometrie
 from v2.pateMaison import PateMaison
 import multiprocessing
 
@@ -77,6 +75,10 @@ class AssociationPateMaisonEngine:
         # On crée le graphe connexe qui regroupe tous les bâtiments qui ont été associés
         self.groupes_pates_maisons = self.graphe_connexe()
 
+        for gpm in self.groupes_pates_maisons:
+            for pm in gpm.pates_maisons:
+                pm.homologues = []
+
         return self.groupes_pates_maisons, self.predictions
    
 
@@ -89,15 +91,12 @@ class AssociationPateMaisonEngine:
 
     def association(self):
 
-        cs = int(len(self.predictions)/(10*self.nb_cpus)+1)
-        arguments = [[prediction, self.predictions] for prediction in self.predictions]
-        with multiprocessing.Pool(processes=self.nb_cpus) as pool:
-            results = list(tqdm(
-            pool.imap_unordered(compute_pate_maisons_association, arguments, chunksize=cs), 
-            total=len(arguments),
-            desc="Calcul des associations de pâtés de maisons"
-        ))        
-        self.predictions = results    
+        for p1 in tqdm(self.predictions, desc="Appariement des pâtés de maisons"):
+            for p2 in self.predictions:
+                if p1==p2:
+                    continue
+                if p1.shot.emprise.intersects(p2.shot.emprise):
+                    p1.association_pates_maisons(p2)
 
 
     def graphe_connexe(self)->List[GroupePatesMaisons]:

@@ -19,7 +19,6 @@ from shapely import Polygon
 from tqdm import tqdm
 import time
 import warnings
-from concurrent.futures import ProcessPoolExecutor
 import os
 import multiprocessing
 multiprocessing.set_start_method('spawn', force=True)
@@ -284,7 +283,10 @@ class SamonGouttiere:
         for prediction in self.predictions:
             new_batiments = []
             for batiment in prediction.batiments:
-                new_batiments.append(batiments[batiment.identifiant])
+                new_batiment = batiments[batiment.identifiant]
+                if new_batiment is not None:
+                    new_batiments.append(new_batiment)
+            prediction.batiments = new_batiments
 
         os.makedirs(os.path.join(self.path_output, "gouttieres", "association_batiment"), exist_ok=True)
         for prediction in self.predictions:
@@ -306,6 +308,7 @@ class SamonGouttiere:
             new_batiments = []
             for batiment in prediction.batiments:
                 new_batiments.append(batiments[batiment.identifiant])
+            prediction.batiments = new_batiments
         
         os.makedirs(os.path.join(self.path_output, "gouttieres", "association_segments"), exist_ok=True)
         for prediction in self.predictions:

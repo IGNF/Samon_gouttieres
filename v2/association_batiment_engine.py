@@ -1,14 +1,11 @@
 from typing import List
-from v2.prediction import Prediction
 from tqdm import tqdm
 import geopandas as gpd
 from v2.groupe_batiments import GroupeBatiments
 from v2.groupe_pate_maisons import GroupePatesMaisons
-import numpy as np
 from v2.batiment import Batiment
 from v2.shot import MNT, RAF, Shot
 from v2.parallelisation import compute_ground_geometrie, compute_estim_z, compute_batiment_association
-from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
 
 class AssociationBatimentEngine:
@@ -87,6 +84,10 @@ class AssociationBatimentEngine:
         # On calcule une estimation de la hauteur du bâtiment
         self.compute_z_mean()
 
+        for gb in self.groupe_batiments:
+            for batiment in gb.batiments:
+                batiment.batiments_homologues = []
+
         return self.groupe_batiments
    
 
@@ -131,7 +132,7 @@ class AssociationBatimentEngine:
                                         liste.append(homologue)
 
                         if len(batis)>1:
-                            groupe_batiments.append(GroupeBatiments(batis, self.pva_path, self.mnt, self.raf, self.shots, self.pompei))
+                            groupe_batiments.append(GroupeBatiments(batis, self.pva_path, pm.mnt, self.raf, self.shots, self.pompei))
         
         return groupe_batiments
     
@@ -144,7 +145,7 @@ class AssociationBatimentEngine:
         On calcule le z moyen de chaque groupe de bâtiment, et on met à jour la projection au sol des bâtiments
         """
 
-        cs = int(len(self.groupe_batiments)/(10*self.nb_cpus)+1)
+        cs = int(len(self.groupe_batiments)/(self.nb_cpus)+1)
             
         with multiprocessing.Pool(processes=self.nb_cpus) as pool:
             results = list(tqdm(
