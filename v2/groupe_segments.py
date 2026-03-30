@@ -16,6 +16,8 @@ class GroupeSegments:
 
         for segment in self.segments:
             segment.groupe_segments = self
+            segment.segments_homologues_1 = []
+            segment.segments_homologues_2 = []
 
 
         self.X0:np.array = None # Point origine de la droite
