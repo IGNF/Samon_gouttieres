@@ -11,7 +11,7 @@ from shapely.ops import polygonize_full
 import geopandas as gpd
 
 
-id_debug = 14
+id_debug = 359
 
 
 class GroupeBatiments:
@@ -49,6 +49,8 @@ class GroupeBatiments:
 
         self.methode_fermeture = None
         self.methode_estimation_hauteur = None
+
+        self.score = 0
 
 
     def set_methode_fermeture(self, methode:str):
@@ -134,6 +136,21 @@ class GroupeBatiments:
             return sum/weight, len(distances)
         else:
             return z+10, 0
+        
+
+    def compute_score(self, altitude_bati):
+        ground_geometries = [bati.compute_ground_geometry_with_alti(altitude_bati) for bati in self.batiments]
+
+        ious = []
+        for i in range(len(ground_geometries)):
+            bati_i = ground_geometries[i]
+            for j in range(i, len(ground_geometries)):
+                bati_j = ground_geometries[j]
+                intersection = bati_i.intersection(bati_j).area
+                union = bati_i.union(bati_j).area
+                ious.append(intersection/union)
+        self.score = sum(ious)/len(ious)
+
 
 
 

@@ -5,6 +5,7 @@ from v2.segments import Segment
 from shapely import Polygon, GeometryCollection, LineString, make_valid, MultiPolygon
 from shapely.ops import polygonize_full
 from shapely.geometry.base import BaseGeometry
+import numpy as np
 
 
 class FermerBatimentEngine:
@@ -25,6 +26,10 @@ class FermerBatimentEngine:
 
         # On récupère tous les bâtiments issu de la même pva que le bâtiment principal
         batiments_principaux = groupe_batiment.get_all_bati_same_PVA(batiment_principal)
+
+        altitude_moyenne_bati = None
+
+        scores = []
 
         polygones = []
         # Pour chaque bâtiment, on va récupérer sa géométrie terrain et l'ajouter à polygones
@@ -77,10 +82,48 @@ class FermerBatimentEngine:
 
             polygones.append(geometrie_fermee)
 
+            ious = []
+            for batiment in groupe_batiment.batiments:
+                if batiment==batiment_principal:
+                    continue
+                ground_geometry = batiment.compute_ground_geometry_with_alti(altitude_moyenne_bati)        
+                intersection = geometrie_fermee.intersection(ground_geometry).area
+                union = geometrie_fermee.union(ground_geometry).area
+                #ious.append(self.chamfer(geometrie_fermee, ground_geometry))
+                ious.append(intersection/union)
+            #scores.append(sum(ious)/len(ious))
+            scores.append(max(ious))
+        
+        if len(scores)>0:
+            groupe_batiment.score = sum(scores)/len(scores)
+            #groupe_batiment.score = max(scores)
+        else:
+            groupe_batiment.score = 0
+
+
         # On récupère une GeometryCollection de Polygon
         groupe_batiment.geometrie_fermee = GeometryCollection(self.extract_polygons(GeometryCollection(polygones)))
 
+        #if altitude_moyenne_bati is not None:
+        #    groupe_batiment.compute_score(altitude_moyenne_bati)
 
+
+    def sample_boundary(self, geom:GeometryCollection, n=100):
+        points = []
+        if isinstance(geom, GeometryCollection):
+            points += [poly.exterior.interpolate(i/n, normalized=True) for i in range(n) for poly in geom.geoms]
+        else:
+            points += [geom.exterior.interpolate(i/n, normalized=True) for i in range(n)]
+        return np.array([(p.x, p.y) for p in points])
+
+    def chamfer(self, poly1, poly2, n=100):
+        pts1 = self.sample_boundary(poly1, n)
+        pts2 = self.sample_boundary(poly2, n)
+
+        def dist(A, B):
+            return np.mean([min(np.linalg.norm(a - b) for b in B) for a in A])
+
+        return dist(pts1, pts2) + dist(pts2, pts1)
 
     def extract_polygons(self, geom:BaseGeometry)->List[Polygon]:
         """

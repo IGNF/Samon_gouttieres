@@ -100,6 +100,16 @@ class Shot:
         return x_shot, y_shot, z_shot
     
 
+    def polygon_ground_to_image(self, polygon:Polygon):
+        exterior_points = list(polygon.exterior.coords)
+        points_image = []
+        for point in exterior_points:
+            c, l = self.world_to_image(point[0], point[1], point[2])
+            points_image.append(Point(c,-l))
+        return Polygon(points_image)
+
+    
+
 
     def bundle_to_local(self, x_bundle, y_bundle, z_bundle):
         # Repere faisceau -> repere local
@@ -246,6 +256,11 @@ class ShotOriente(Shot):
                 shot.y_ppa = float(focal.find(".//y").text)
                 shot.focal = float(focal.find(".//z").text)
 
+                shot.width = int(sensor.find(".//usefull-frame").find(".//w").text)
+                shot.height = int(sensor.find(".//usefull-frame").find(".//h").text)
+
+                shot.poly_widht_height = Polygon.from_bounds(0,-shot.height,shot.width, 0)
+
         shot.x_pos_eucli, shot.y_pos_eucli, shot.z_pos_eucli = shot.world_to_euclidean(shot.x_pos, shot.y_pos, shot.z_pos)
 
         
@@ -326,6 +341,55 @@ class ShotOriente(Shot):
             else:
                 z_world = estim_z
             z_world = np.full_like(x_world, z_world)
+            # On repasse en euclidien avec le bon Zworld , l'approximation plani ayant un impact minime
+            x_local, y_local, z_local = self.world_to_euclidean(x_world, y_world, z_world)
+
+            # nouvelle transfo avec un zLocal plus precis
+            x_local, y_local, z_local = self.image_z_to_local(c, l, z_local)
+
+            # passage en terrain (normalement le zw obtenu devrait être quasiment identique au Z initial)
+            x_world_new, y_world_new, z_world_new = self.euclidean_to_world(x_local, y_local, z_local)
+
+            dist = ((x_world_new - x_world) ** 2 + (y_world_new - y_world) ** 2 + (z_world_new - z_world) ** 2) ** 0.5
+            if np.any(dist < prec):
+                precision_reached = True
+            x_world, y_world, z_world = x_world_new, y_world_new, z_world_new
+            nbr_iter += 1
+
+        return self.convertback(type_input, x_world, y_world, z_world)
+    
+
+    def image_to_world_alti(self, c, l, alti, prec=0.1, iter_max=3, estim_z=None):
+        """
+        Compute the world coordinates of (a) image point(s).
+        A Dem must be used.
+
+        :param c: column coordinates of image point(s)
+        :param l: line coordinates of image point(s)
+        :param dem: Dem of the area or constant value
+        :param prec: accuracy
+        :param iter_max: maximum number of iterations
+
+        Attention, la distorsion n'est pas corrigée ici !!! 
+
+        :return: x, y, z World coordinates
+        """
+        # initialisation
+        # passage en local en faisant l'approximation z "local" a partir du z "world"
+        # La fonction calcule le x et y euclidien correspondant à une coordonnées image et un Z local
+        
+        type_input = type(c)
+
+
+        z_world = np.full_like(c, alti)
+        x_local, y_local, z_local = self.image_z_to_local(c, l, z_world)
+        # On a les coordonnées locales approchées (car z non local) on passe en world
+        x_world, y_world, _ = self.euclidean_to_world(x_local, y_local, z_local)
+        precision_reached = False
+        nbr_iter = 0
+
+        while not precision_reached and nbr_iter < iter_max:
+            z_world = np.full_like(x_world, alti)
             # On repasse en euclidien avec le bon Zworld , l'approximation plani ayant un impact minime
             x_local, y_local, z_local = self.world_to_euclidean(x_world, y_world, z_world)
 

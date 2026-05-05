@@ -170,6 +170,31 @@ class Batiment:
             points.append(Point(x[1], y[1]))
         return Polygon(points)
     
+
+    def compute_ground_geometry_with_alti(self, altitude):
+        """
+        Calcule la projection du bâtiment sur altitude
+        """
+        x, y = self.geometrie_image.exterior.coords.xy
+        
+        c = []
+        l = []
+        for i in range(len(x)):
+            c.append(x[i])
+            l.append(-y[i])
+
+        x, y, z = self.shot.image_to_world_alti(np.array(c), np.array(l), altitude)
+        ground_points = []
+        for i in range(len(x)):
+            ground_points.append([x[i], y[i], z[i]])
+        geometrie_terrain = Polygon(ground_points) 
+        if not geometrie_terrain.is_valid:
+            valid_geometry = make_valid(geometrie_terrain)
+            if isinstance(valid_geometry, MultiPolygon):
+                geometrie_terrain = list(valid_geometry.geoms)[0]
+            else:
+                geometrie_terrain = valid_geometry
+        return geometrie_terrain
     
 
     def compute_ground_geometry(self, estim_z=None)->None:

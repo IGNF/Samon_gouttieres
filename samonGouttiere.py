@@ -21,6 +21,8 @@ import time
 import warnings
 import os
 import multiprocessing
+from osgeo import gdal
+gdal.DontUseExceptions()
 multiprocessing.set_start_method('spawn', force=True)
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -330,6 +332,11 @@ class SamonGouttiere:
         d_mean = []
         residus = []
         identifiant = []
+        id_bati = []
+        dict_voisins = {}
+        for i in range(8):
+            dict_voisins[f"v_{i}"] = []
+
 
         for groupe_segments in self.groupe_segments:
             if not groupe_segments._supprime:
@@ -338,9 +345,18 @@ class SamonGouttiere:
                 d_mean.append(groupe_segments.get_d_mean())
                 residus.append(groupe_segments.get_residu_moyen())
                 identifiant.append(groupe_segments.get_identifiant())
+                id_bati.append(groupe_segments.id_batiment)
+                for i in range(8):
+                    if i<len(groupe_segments.voisins):
+                        dict_voisins[f"v_{i}"].append(groupe_segments.voisins[i].get_identifiant())
+                    else:
+                        dict_voisins[f"v_{i}"].append(None)
 
         os.makedirs(os.path.join(self.path_output, "gouttieres", "intersections"), exist_ok=True)
-        gdf = gpd.GeoDataFrame({"id":identifiant, "residus":residus, "d_mean":d_mean, "nb_segments":nb_segments, "geometry":geometries}, crs="EPSG:2154")
+        dict = {"id":identifiant, "residus":residus, "d_mean":d_mean, "nb_segments":nb_segments, "id_bati":id_bati, "geometry":geometries}
+        for i in range(8):
+            dict[f"v_{i}"] = dict_voisins[f"v_{i}"]
+        gdf = gpd.GeoDataFrame(dict, crs="EPSG:2154")
         gdf.to_file(os.path.join(self.path_output, "gouttieres", "intersections", "intersections.gpkg"))
 
 
@@ -357,6 +373,7 @@ class SamonGouttiere:
         methode_estimation_alti = []
         estimation_z = []
         delta_estim = []
+        score = []
 
 
         for groupe_batiment in self.groupe_batiments:
@@ -367,19 +384,10 @@ class SamonGouttiere:
                 methode.append(groupe_batiment.get_methode_fermeture())
                 methode_estimation_alti.append(groupe_batiment.get_methode_estimation_hauteur())
                 estimation_z.append(groupe_batiment.estim_z)
+                score.append(groupe_batiment.score)
 
-                #delta_z_list = []
-                #for point in geom.exterior.coords:
-                #    z = self.mnt.get(point[0], point[1])
-                #    delta_z = point[2] - z
-                #    delta_z_list.append(delta_z[0])
-                #delta_z_mean = sum(delta_z_list)/len(delta_z_list)
-                #if groupe_batiment.estim_z is not None:
-                #    delta_estim.append(groupe_batiment.estim_z - delta_z_mean)
-                #else:
-                #    delta_estim.append(0)
                 delta_estim.append(0)
-        d = {"id_bati":identifiant, "methode":methode, "estim_alti":methode_estimation_alti, "estim_z":estimation_z, "delta_estim":delta_estim, "geometry":geometries}
+        d = {"id_bati":identifiant, "methode":methode, "estim_alti":methode_estimation_alti, "estim_z":estimation_z, "delta_estim":delta_estim, "score":score, "geometry":geometries}
         
         os.makedirs(os.path.join(self.path_output, "gouttieres", "batiments_fermes"), exist_ok=True)
         gdf = gpd.GeoDataFrame(d, crs="EPSG:2154")
