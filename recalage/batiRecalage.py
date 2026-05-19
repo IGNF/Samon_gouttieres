@@ -1,5 +1,5 @@
 import geopandas as gpd
-from shapely import Polygon, convex_hull, MultiPoint, MultiLineString
+from shapely import Polygon, convex_hull, MultiPoint, MultiLineString, LineString
 
 
 class Bati:
@@ -101,13 +101,36 @@ def charger_bati(chemin, clef_id):
     return batis
 
 
-def charger_bati_gouttieres(chemin, clef_id, liste_id):
+def charger_bati_gouttieres_save(chemin, clef_id, liste_id):
     batis = []
     gdf = gpd.read_file(chemin)
     for geometry in gdf.iterfeatures():
         id = geometry["properties"]["id_bati"]
         segment = geometry["geometry"]["coordinates"]
         liste_id[id].append(segment)
+    
+
+    for i, liste in enumerate(liste_id):
+        if len(liste)>0:
+            bati = Bati_gouttieres_2D(liste, i)
+            batis.append(bati)
+    return batis
+
+
+def charger_bati_gouttieres(chemin, clef_id, liste_id):
+    batis = []
+    gdf = gpd.read_file(chemin)
+    for i in range(gdf.shape[0]):
+        raw = gdf.iloc[i]
+        id = raw["id_bati"]
+        geometry = raw["geometry"]
+        if isinstance(geometry, LineString):
+            liste_id[id].append(list(geometry.coords))
+
+        else:
+            coords = list(geometry.exterior.coords)
+            for j in range(1, len(coords)):
+                liste_id[id].append([coords[j-1], coords[j]])
     
 
     for i, liste in enumerate(liste_id):

@@ -7,6 +7,7 @@ from goutiere import Goutiere_proj
 from bati import BatiProjete
 import random
 from shapely.geometry import MultiPoint
+from shapely import Polygon
 
 
 def get_id_bati_max(input):
@@ -113,7 +114,7 @@ def creer_liste_points(batis_bd_uni, batis_gouttieres):
     return liste_points
 
 
-def analyse_residus(points, A, B, x_chap, V):
+def analyse_residus(points, A, B, x_chap, V, P):
     """
     On calcule l'erreur moyenne sur les résidus, les résidus normalisés et le résidu maximal.
     Pour chaque point, on ajoute un champ résidu.
@@ -122,6 +123,7 @@ def analyse_residus(points, A, B, x_chap, V):
     n = A.shape[0]
     sigma_0 = V.T @ V / (n - 4)
     try:
+        A = np.sqrt(P)@A
         var_V = sigma_0 * (np.eye(n) - A @ np.linalg.inv(A.T @ A) @ A.T)
         V_norm_2 = np.abs(V.squeeze()/np.sqrt(np.diag(var_V)))
         print("V_norm_2 : ", V_norm_2)    
@@ -145,7 +147,6 @@ def calculer_inliers(parametres, points, seuil):
     TY = parametres[1]
     a = parametres[2]
     b = parametres[3]
-
 
     # On parcourt tous les points
     for point in points:
@@ -193,7 +194,7 @@ def ransac(points, iteration, seuil):
         points_numpy = np.array(liste_numpy)
         
         # On calcule les paramètres via la méthode des moindres carrés
-        parametres, _,_,_,_ = calculer_parametres_moindres_carres(points_numpy)
+        parametres, _,_,_,_, _ = calculer_parametres_moindres_carres(points_numpy)
 
         # On calcule le nombre d'inliers à partir de ces paramètres
         nb_inliers, inliers = calculer_inliers(parametres, points, seuil)
@@ -230,6 +231,27 @@ def build_A_B(points_numpy):
     return A, B
 
 
+def build_P(points_numpy):
+    return np.eye(points_numpy.shape[0]*2)
+    if points_numpy.shape[0]<=2:
+        return np.eye(points_numpy.shape[0]*2)
+    points = points_numpy[:,:2]
+
+    liste_points = [[points[i,0], points[i,1]] for i in range(points.shape[0])]
+    polygon = Polygon(liste_points)
+    bbox = polygon.bounds
+    d_ref = max(abs(bbox[2]-bbox[0]), abs(bbox[3]-bbox[1]))/3
+
+    
+    diag = []
+    for i in range(points.shape[0]):
+        p = points[i]
+        distance = np.sqrt((points[:,0]-p[0])**2+(points[:,1]-p[1])**2)
+        nb_voisins = np.sum(np.where(distance<d_ref,1,0))
+        diag.append(1/nb_voisins)
+        diag.append(1/nb_voisins)
+    return np.diag(diag)
+
 def calculer_parametres_moindres_carres(points_numpy):
     """
     Calcule des paramètres à l'aide de la méthode des moindres carrés (https://v-assets.cdnsw.com/fs/Cours_techni/e1v0b-Adaptation_Helmert.pdf)
@@ -238,16 +260,17 @@ def calculer_parametres_moindres_carres(points_numpy):
 
     # On construit les matrices A et B
     A, B = build_A_B(points_numpy)
+    P = build_P(points_numpy)
 
     # On résout le système
-    x_chap, res, _, _ = np.linalg.lstsq(A, B, rcond=None)
+    x_chap, res, _, _ = np.linalg.lstsq(np.sqrt(P)@A, np.sqrt(P)@B, rcond=None)
     
-    V = B - A @ x_chap
+    V = np.sqrt(P)@ (B - A @ x_chap)
     TX = x_chap[0,0]
     TY = x_chap[1,0]
     a = x_chap[2,0]
     b = x_chap[3,0]
-    return [TX, TY, a, b], A, B, x_chap, V
+    return [TX, TY, a, b], A, B, x_chap, V, P
 
 
 def moindres_carres(liste_points):
@@ -270,10 +293,10 @@ def moindres_carres(liste_points):
 
         
         # On calcule les paramètres avec la méthode des moindres carrés
-        parametres, A, B, x_chap, V = calculer_parametres_moindres_carres(points_numpy)
+        parametres, A, B, x_chap, V, P = calculer_parametres_moindres_carres(points_numpy)
 
         # On analyse les résidus
-        nb_points, mean, res_max, res_norm_max, res_argmax = analyse_residus(liste_points, A, B, x_chap, V)
+        nb_points, mean, res_max, res_norm_max, res_argmax = analyse_residus(liste_points, A, B, x_chap, V, P)
         # Si un des résidus normalisés est supérieur à 2, alors on supprime le point
         if res_norm_max > 2:
             suppression = True
@@ -283,7 +306,7 @@ def moindres_carres(liste_points):
     hull = mp.convex_hull
     return parametres, nb_points, mean, res_max, hull
 
-id_debug = 431
+id_debug = 478
 def compute_recalage(batis, seuil):
     """
     batis est une liste de bâtiments qui proviennent de la BD Uni ou de la reconstruction
@@ -301,11 +324,11 @@ def compute_recalage(batis, seuil):
     # Avec du ransac, on supprime les points faux
 
     if id==id_debug:
-        print("a : ", liste_points)
+        print("a : ", liste_points, len(liste_points))
     liste_points = ransac(liste_points, 100, seuil)
 
     if id==id_debug:
-        print("b : ", liste_points)
+        print("b : ", liste_points, len(liste_points))
         
     # Avec les points restants, on calcule la transformation avec la méthode des moindres carrés
     
@@ -313,7 +336,6 @@ def compute_recalage(batis, seuil):
 
     if id==id_debug:
         print("c : ", liste_points)
-        print(a)
 
     intersection = hull.intersection(hull_0)
     union = hull.union(hull_0)
@@ -367,7 +389,7 @@ def sauvegarde_projection(batis_bd_uni, output):
 
 
 def recalage(input, output):
-    seuil = 1
+    seuil = 2
     if not os.path.exists(output):
         os.makedirs(output)
 
