@@ -12,3 +12,6 @@ convert_aero.py
 zarr.json
 
 data/*
+
+
+FFL/frame_field_learning/runs/*

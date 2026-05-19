@@ -1,0 +1,12 @@
+{
+    "root_dirname": "dgfip",
+    "gt_source": "disk",  // Can be "disk" or "osm". "osm" will download annotations from OSM
+    "gt_type": "polygon",  // If gt_source=="disk", reads polygon data from gt_dirname
+    "gt_dirname": "annotations",  // If null, will be replaced by default dirname depending on gt_type
+    "mask_only": false,  // This is the default value to not use this option
+    "small": false,
+    "data_patch_size": 1000,
+    "input_patch_size": 750,
+  
+    "train_fraction": 0.85  // Remaining is validation
+  }

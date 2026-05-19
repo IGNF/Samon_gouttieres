@@ -1,9 +1,12 @@
 
+<h1 align="center">
+  Reconstruction automatique de contours de toits en 3D à l’aide du Frame Field Learning 
+</h1>
 
-# Retrouver les contours des toits des bâtiments en 3D
+<h4 align="center">Implémentation officielle de  <a href="https://rfpt.sfpt.fr/index.php/RFPT/article/view/733">Reconstruction automatique de contours de toits en 3D à l’aide du Frame Field Learning</a></h4>
 
-Ce répertoire permet de reconstruire en 3D les contours de toit (script SamonGouttiere.py).
-Il a permis il fut un temps un temps de recaler les bâtiments de la BD Uni sur les contours de toit trouvés précédemment (script v1/run_recalage.py). Mais cette fonctionnalité n'a plus été maintenue.
+
+Ce répertoire permet de reconstruire en 3D les contours de toit à partir d'images orientées et sans Lidar.
 
 
 ![Alt text](Mont_Dauphin.png "Mont Dauphin")
@@ -25,12 +28,21 @@ Eventuellement, il peut s'y trouver :
 
 
 
+## Inférences FFL
+
+Le code FFL a été copié dans [FFL](FFL/).
+Pour l'installation, suivre les consignes du readme FFL.
+
+Pour faire des inférences sur un cluster SLURM, utiliser le fichier FFL/run_FFL.sh.
+
+
+
 
 ## Installation
 
 Création de l'environnement conda : 
 ```
-mamba env create -f v1/environment.yaml
+mamba env create -f env.yaml
 conda activate samon
 ```
 
@@ -43,7 +55,7 @@ python samonGouttiere.py --input [répertoire] --emprise [emprise]
 
 Pour convertir le résultat en fichier obj :
 ```
-python script/convert_to_obj.py --input [répertoire]
+python v2/convert_to_obj.py --input [répertoire]
 ```
 
 
@@ -58,6 +70,13 @@ Dans chantiers/gouttieres :
 * association_segments : un bord de toit possède le même identifiant dans les différents fichiers shapefile
 * intersections : position 3D des bords de toit.
 * batiments_fermes : on ferme les bâtiments à partir des bords de toit trouvés à l'étape précédente. intersections.gpkg contient les bords de toit ajustés lorsqu'ils intersectent d'autres bords de toit. batiments_fermes.gpkg contient les batiments fermés (après regroupement des bords de toit)
+
+
+## Recalage BD Uni
+
+```
+sh run_recalage.sh repertoire_chantier repertoire_BD_Uni fichier_emprise
+```
 
 
 ## Trois zones d'études

@@ -1,0 +1,21 @@
+Metadata-Version: 2.1
+Name: torch_lydorn
+Version: 0.0.2
+Summary: Various extensions to existing PyTorch libraries
+Author: Nicolas Girard
+Author-email: nicolas.jp.girard@gmail.com
+License: BSD-3-Clause license
+Classifier: License :: BSD-3-Clause license
+Classifier: Programming Language :: Python
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+
+My own extensions to several torch libraries:
+
+- PyTorch
+- Torchvision
+- PyTorch Geometric
+- kornia
+
+And additional utils related to torch.setup.py
