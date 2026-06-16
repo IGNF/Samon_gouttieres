@@ -32,7 +32,7 @@ warnings.filterwarnings("ignore", message="'crs' was not provided")
 
 class SamonGouttiere:
 
-    def __init__(self, path_chantier:str, path_output:str, path_emprise:str, pompei:bool, nb_cpus:int):
+    def __init__(self, path_chantier:str, path_output:str, path_emprise:str, pompei:bool, nb_cpus:int, pvas_dir = None):
         
         # Chemin où se trouve le chantier
         if not os.path.isdir(path_chantier):
@@ -53,6 +53,7 @@ class SamonGouttiere:
         self.pompei = pompei
 
         self.emprise:gpd.GeoDataFrame = self.charger_emprise(path_emprise)
+        self.pvas_dir = pvas_dir
 
 
     def charger_emprise(self, chemin_emprise)->gpd.GeoDataFrame:
@@ -72,7 +73,10 @@ class SamonGouttiere:
         return path
     
     def get_pva_path(self)->str:
-        path = os.path.join(self.path_chantier, "pvas")
+        if self.pvas_dir is not None:
+            path = self.pvas_dir
+        else:
+            path = os.path.join(self.path_chantier, "pvas")
         if not os.path.isdir(path):
             return ValueError(f"{path} n'existe pas")
         return path

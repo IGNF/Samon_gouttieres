@@ -15,3 +15,6 @@ data/*
 
 
 FFL/frame_field_learning/runs/*
+
+restitution.py
+preparer_restitution.py

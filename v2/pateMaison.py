@@ -91,7 +91,7 @@ class PateMaison:
     def check_in_emprise(self, emprise):
         liste_valide = []
         for batiment in self.batiments:
-            if batiment.geometrie_terrain is not None and batiment.geometrie_terrain.within(emprise).any():
+            if batiment.geometrie_terrain is not None and batiment.geometrie_terrain.intersects(emprise).any():
                 liste_valide.append(batiment)
         self.batiments = liste_valide
 
